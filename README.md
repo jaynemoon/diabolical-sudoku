@@ -1,13 +1,8 @@
-# CONSTRAINT
+# Diabolical Sudoku 
 
-Variant sudoku with stackable rules and a solver that grades every board by the
-techniques it actually requires. Built because the puzzle apps run out of hard
-boards.
+Advanced(hard) sudoku variant I created, as I needed a challenge from the 'Hard' Sudoku Switch games. Fulfilling the need for harder, more diabolical Sudoku boards. 
 
-The whole game is one self-contained `index.html` — no dependencies, no build
-step, no network calls. Open the file and play.
-
-## Constraints
+## Game Mechanics
 
 Any combination can be switched on at once:
 
