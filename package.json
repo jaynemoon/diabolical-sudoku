@@ -1,0 +1,11 @@
+{
+  "name": "constraint-sudoku",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Variant sudoku with stackable constraints and a technique-grading solver",
+  "scripts": {
+    "test": "node tests/engine.test.mjs && node tests/ui.test.mjs",
+    "calibrate": "node tests/calibrate.mjs"
+  }
+}

@@ -1,0 +1,1659 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<meta name="description" content="Variant sudoku with stackable constraints and a solver that grades every board by the techniques it actually requires.">
+<title>CONSTRAINT — variant sudoku for people who finished hard</title>
+</head>
+<body>
+<style>
+/* ============================================================
+   TOKENS
+   ============================================================ */
+:root{
+  --paper:#E8EBEF;
+  --panel:#F3F5F8;
+  --panel-2:#FBFCFD;
+  --hair:#C6CDD7;
+  --rule:#39424F;
+  --ink:#141A22;
+  --ink-soft:#5C6878;
+  --ink-faint:#6F7A89;
+  --pen:#1B49C4;
+  --pen-wash:rgba(27,73,196,.10);
+  --pen-wash-2:rgba(27,73,196,.05);
+  --pencil:#6F7C91;
+  --amber:#A85D06;
+  --amber-wash:rgba(168,93,6,.16);
+  --rose:#AE0F38;
+  --rose-wash:rgba(174,15,56,.13);
+  --jade:#0B6E56;
+  --given:#141A22;
+  --shadow:0 1px 0 rgba(20,26,34,.05), 0 12px 30px -18px rgba(20,26,34,.35);
+
+  --sans:"Helvetica Neue",Helvetica,-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;
+  --mono:ui-monospace,"SF Mono",SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;
+}
+@media (prefers-color-scheme:dark){
+  :root{
+    --paper:#0C1015;
+    --panel:#141920;
+    --panel-2:#1A2029;
+    --hair:#28313D;
+    --rule:#7F8DA1;
+    --ink:#E3E9F1;
+    --ink-soft:#96A4B8;
+    --ink-faint:#7C8B9F;
+    --pen:#8CA8FF;
+    --pen-wash:rgba(140,168,255,.14);
+    --pen-wash-2:rgba(140,168,255,.06);
+    --pencil:#71809A;
+    --amber:#DFA152;
+    --amber-wash:rgba(223,161,82,.18);
+    --rose:#FF7191;
+    --rose-wash:rgba(255,113,145,.16);
+    --jade:#54D6A7;
+    --given:#E3E9F1;
+    --shadow:0 1px 0 rgba(0,0,0,.4), 0 18px 40px -24px rgba(0,0,0,.9);
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#0C1015; --panel:#141920; --panel-2:#1A2029; --hair:#28313D; --rule:#7F8DA1;
+  --ink:#E3E9F1; --ink-soft:#96A4B8; --ink-faint:#7C8B9F;
+  --pen:#8CA8FF; --pen-wash:rgba(140,168,255,.14); --pen-wash-2:rgba(140,168,255,.06);
+  --pencil:#71809A; --amber:#DFA152; --amber-wash:rgba(223,161,82,.18);
+  --rose:#FF7191; --rose-wash:rgba(255,113,145,.16); --jade:#54D6A7; --given:#E3E9F1;
+  --shadow:0 1px 0 rgba(0,0,0,.4), 0 18px 40px -24px rgba(0,0,0,.9);
+}
+:root[data-theme="light"]{
+  --paper:#E8EBEF; --panel:#F3F5F8; --panel-2:#FBFCFD; --hair:#C6CDD7; --rule:#39424F;
+  --ink:#141A22; --ink-soft:#5C6878; --ink-faint:#6F7A89;
+  --pen:#1B49C4; --pen-wash:rgba(27,73,196,.10); --pen-wash-2:rgba(27,73,196,.05);
+  --pencil:#6F7C91; --amber:#A85D06; --amber-wash:rgba(168,93,6,.16);
+  --rose:#AE0F38; --rose-wash:rgba(174,15,56,.13); --jade:#0B6E56; --given:#141A22;
+  --shadow:0 1px 0 rgba(20,26,34,.05), 0 12px 30px -18px rgba(20,26,34,.35);
+}
+
+/* ============================================================
+   BASE
+   ============================================================ */
+*{box-sizing:border-box}
+body{
+  margin:0;
+  background:var(--paper);
+  color:var(--ink);
+  font-family:var(--sans);
+  -webkit-font-smoothing:antialiased;
+}
+.wrap{max-width:1160px;margin:0 auto;padding:clamp(18px,3vw,44px) clamp(14px,3vw,32px) 72px}
+
+/* ---- masthead ---- */
+.masthead{display:flex;align-items:flex-end;justify-content:space-between;gap:24px;flex-wrap:wrap}
+h1{
+  margin:0;
+  font-size:clamp(38px,7.5vw,72px);
+  line-height:.86;
+  font-weight:800;
+  letter-spacing:-.045em;
+  transform:scaleX(.93);
+  transform-origin:left bottom;
+  text-wrap:balance;
+}
+.tag{
+  margin:14px 0 0;
+  font-family:var(--mono);
+  font-size:11.5px;
+  letter-spacing:.13em;
+  text-transform:uppercase;
+  color:var(--ink-soft);
+  max-width:52ch;
+  line-height:1.7;
+}
+.themebtn{
+  font-family:var(--mono);font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;
+  background:none;border:1px solid var(--hair);color:var(--ink-soft);
+  padding:8px 12px;cursor:pointer;border-radius:2px;
+}
+.themebtn:hover{border-color:var(--rule);color:var(--ink)}
+.rules{margin:26px 0 30px;border-top:2px solid var(--rule);border-bottom:1px solid var(--hair);height:4px}
+
+/* ---- stage ---- */
+.stage{display:grid;grid-template-columns:minmax(0,1fr) 322px;gap:clamp(20px,3vw,38px);align-items:start}
+@media (max-width:960px){.stage{grid-template-columns:minmax(0,1fr)}}
+
+/* ============================================================
+   BOARD
+   ============================================================ */
+.boardwrap{
+  position:relative;width:100%;max-width:624px;aspect-ratio:1/1;margin:0 auto;
+  container-type:inline-size;
+  background:var(--panel-2);
+  box-shadow:var(--shadow);
+}
+.boardwrap svg{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+#svgUnder{z-index:0}
+#svgOver{z-index:3}
+.grid{
+  position:absolute;inset:0;z-index:2;
+  display:grid;grid-template-columns:repeat(9,1fr);grid-template-rows:repeat(9,1fr);
+}
+.cell{
+  position:relative;display:flex;align-items:center;justify-content:center;
+  border-right:1px solid var(--hair);border-bottom:1px solid var(--hair);
+  cursor:pointer;user-select:none;-webkit-tap-highlight-color:transparent;
+  background:transparent;transition:background-color .09s linear;
+}
+.cell:nth-child(9n){border-right:none}
+.cell:nth-child(n+73){border-bottom:none}
+.cell.peer{background:var(--pen-wash-2)}
+.cell.match{background:var(--pen-wash)}
+.cell.sel{background:var(--pen-wash);box-shadow:inset 0 0 0 2px var(--pen);z-index:4}
+.cell.bad{background:var(--rose-wash)}
+.cell:focus-visible{outline:2px solid var(--pen);outline-offset:-2px}
+
+.val{
+  font-size:5.6cqi;line-height:1;font-weight:400;color:var(--pen);
+  font-variant-numeric:tabular-nums;letter-spacing:-.02em;
+}
+.cell.given .val{color:var(--given);font-weight:650}
+.cell.bad .val{color:var(--rose)}
+.cell.done .val{color:var(--jade)}
+@media (prefers-reduced-motion:no-preference){
+  .val.set{animation:ink .16s ease-out}
+}
+@keyframes ink{from{opacity:.15;transform:translateY(-.06em) scale(.92)}to{opacity:1;transform:none}}
+
+.notes{
+  position:absolute;inset:6%;display:grid;
+  grid-template-columns:repeat(3,1fr);grid-template-rows:repeat(3,1fr);
+  font-family:var(--mono);font-size:1.95cqi;color:var(--pencil);
+  pointer-events:none;
+}
+.notes span{display:flex;align-items:center;justify-content:center;line-height:1}
+.notes span.hi{color:var(--pen);font-weight:700}
+
+/* ============================================================
+   PAD + BUTTONS
+   ============================================================ */
+.underboard{max-width:624px;margin:20px auto 0;display:flex;flex-direction:column;gap:12px}
+.pad{display:grid;grid-template-columns:repeat(9,1fr);gap:6px}
+.pad button{
+  aspect-ratio:1/1.05;border:1px solid var(--hair);background:var(--panel-2);color:var(--ink);
+  font-family:var(--sans);font-size:clamp(17px,3.2vw,23px);font-variant-numeric:tabular-nums;
+  border-radius:3px;cursor:pointer;position:relative;padding:0;
+  transition:border-color .1s,background-color .1s,color .1s;
+}
+.pad button:hover{border-color:var(--pen);color:var(--pen)}
+.pad button:active{background:var(--pen-wash)}
+.pad button .left{
+  position:absolute;bottom:3px;right:5px;font-family:var(--mono);font-size:9px;
+  color:var(--ink-faint);font-weight:400;
+}
+.pad button.spent{color:var(--ink-faint);border-color:var(--hair);background:transparent}
+.pad button.spent .left{opacity:0}
+body.notemode .pad button{color:var(--pencil);font-size:clamp(13px,2.4vw,17px)}
+
+.tools{display:grid;grid-template-columns:repeat(5,1fr);gap:6px}
+.tools button{
+  border:1px solid var(--hair);background:var(--panel-2);color:var(--ink-soft);
+  font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;
+  padding:11px 4px;border-radius:3px;cursor:pointer;transition:all .1s;
+}
+.tools button:hover{border-color:var(--rule);color:var(--ink)}
+.tools button.on{background:var(--pen);border-color:var(--pen);color:#fff}
+:root[data-theme="dark"] .tools button.on{color:#0C1015}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .tools button.on{color:#0C1015}}
+
+/* ============================================================
+   CONSOLE RAIL
+   ============================================================ */
+.rail{display:flex;flex-direction:column;gap:14px}
+.card{background:var(--panel);border:1px solid var(--hair);border-radius:3px;padding:16px 16px 18px}
+.card h2{
+  margin:0 0 14px;font-family:var(--mono);font-size:10px;letter-spacing:.18em;
+  text-transform:uppercase;color:var(--ink-faint);font-weight:400;
+  display:flex;justify-content:space-between;align-items:baseline;gap:8px;
+}
+.card h2 b{font-weight:400;color:var(--ink-soft)}
+
+/* constraint switches */
+.switches{display:flex;flex-direction:column;gap:1px;background:var(--hair);border:1px solid var(--hair);border-radius:2px;overflow:hidden}
+.sw{display:flex;gap:10px;align-items:flex-start;padding:9px 11px;background:var(--panel-2);cursor:pointer}
+.sw:hover{background:var(--paper)}
+.sw input{margin:2px 0 0;accent-color:var(--pen);width:14px;height:14px;flex:none;cursor:pointer}
+.sw .nm{font-size:12.5px;font-weight:600;letter-spacing:-.005em;display:block}
+.sw .ds{font-family:var(--mono);font-size:9.5px;color:var(--ink-faint);line-height:1.55;display:block;margin-top:2px}
+
+/* difficulty */
+.diffs{display:grid;grid-template-columns:repeat(5,1fr);gap:0;border:1px solid var(--hair);border-radius:2px;overflow:hidden;margin-bottom:12px}
+.diffs button{
+  border:none;border-right:1px solid var(--hair);background:var(--panel-2);color:var(--ink-soft);
+  font-family:var(--mono);font-size:9px;letter-spacing:.06em;text-transform:uppercase;
+  padding:10px 2px;cursor:pointer;transition:all .1s;
+}
+.diffs button:last-child{border-right:none}
+.diffs button:hover{color:var(--ink)}
+.diffs button.on{background:var(--rule);color:var(--panel-2)}
+
+.seedrow{display:flex;gap:6px;margin-bottom:10px}
+.seedrow input{
+  flex:1;min-width:0;border:1px solid var(--hair);background:var(--panel-2);color:var(--ink);
+  font-family:var(--mono);font-size:11px;padding:9px 10px;border-radius:2px;letter-spacing:.06em;
+}
+.seedrow input:focus{outline:none;border-color:var(--pen)}
+.seedrow button{
+  border:1px solid var(--hair);background:var(--panel-2);color:var(--ink-soft);
+  font-family:var(--mono);font-size:10px;padding:0 11px;border-radius:2px;cursor:pointer;
+}
+.seedrow button:hover{border-color:var(--rule);color:var(--ink)}
+
+.deal{
+  width:100%;border:none;background:var(--rule);color:var(--panel-2);
+  font-family:var(--mono);font-size:11px;letter-spacing:.16em;text-transform:uppercase;
+  padding:14px;border-radius:2px;cursor:pointer;transition:opacity .12s;
+}
+.deal:hover{opacity:.85}
+.deal:disabled{opacity:.45;cursor:progress}
+
+/* readout */
+.meta{display:grid;grid-template-columns:auto 1fr;gap:5px 14px;font-family:var(--mono);font-size:11px;margin-bottom:14px}
+.meta dt{color:var(--ink-faint);letter-spacing:.08em;text-transform:uppercase;font-size:9.5px;padding-top:2px}
+.meta dd{margin:0;color:var(--ink);font-variant-numeric:tabular-nums}
+.band{font-weight:700;letter-spacing:.04em;text-transform:uppercase}
+
+.log{display:flex;flex-direction:column;gap:0;border-top:1px solid var(--hair)}
+.log .row{
+  display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center;
+  padding:6px 0;border-bottom:1px solid var(--hair);
+  font-family:var(--mono);font-size:10.5px;
+}
+.log .row .nm{color:var(--ink);letter-spacing:.02em}
+.log .row .ct{color:var(--ink-faint);font-variant-numeric:tabular-nums}
+.log .row.peak .nm{color:var(--amber);font-weight:700}
+.log .bar{grid-column:1/-1;height:2px;background:var(--hair);position:relative;margin-bottom:2px}
+.log .bar i{position:absolute;inset:0 auto 0 0;background:var(--pen)}
+.log .row.peak + .bar i{background:var(--amber)}
+
+.status{font-family:var(--mono);font-size:10.5px;color:var(--ink-soft);line-height:1.65;min-height:1.65em}
+.status.win{color:var(--jade);font-weight:700;letter-spacing:.06em;text-transform:uppercase}
+.status.err{color:var(--rose)}
+
+.legend{display:flex;flex-direction:column;gap:7px;font-family:var(--mono);font-size:10px;color:var(--ink-soft);line-height:1.5}
+.legend div{display:grid;grid-template-columns:52px 1fr;gap:9px}
+.legend kbd{
+  font-family:var(--mono);font-size:9px;background:var(--panel-2);border:1px solid var(--hair);
+  border-radius:2px;padding:2px 0;text-align:center;color:var(--ink);
+}
+
+/* overlay */
+.veil{
+  position:absolute;inset:0;z-index:9;display:none;align-items:center;justify-content:center;
+  background:color-mix(in srgb,var(--paper) 88%,transparent);
+  font-family:var(--mono);font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--ink-soft);
+  text-align:center;padding:20px;
+}
+.veil.show{display:flex}
+.dots::after{content:"";animation:dots 1.1s steps(4,end) infinite}
+@keyframes dots{0%{content:""}25%{content:"."}50%{content:".."}75%{content:"..."}}
+@media (prefers-reduced-motion:reduce){.dots::after{content:"..."; animation:none}}
+
+.foot{
+  margin-top:34px;padding-top:14px;border-top:1px solid var(--hair);
+  font-family:var(--mono);font-size:10px;color:var(--ink-faint);line-height:1.8;max-width:70ch;
+}
+</style>
+
+<div class="wrap">
+
+  <header class="masthead">
+    <div>
+      <h1>CONSTRAINT</h1>
+      <p class="tag">Variant sudoku with a solver that grades what it built. Stack the rules, dial the difficulty past where the shops stop, and the console tells you which techniques the board will actually demand.</p>
+    </div>
+    <button class="themebtn" id="themeBtn" type="button">Invert</button>
+  </header>
+
+  <div class="rules"></div>
+
+  <div class="stage">
+
+    <!-- ============ BOARD COLUMN ============ -->
+    <div>
+      <div class="boardwrap" id="boardwrap">
+        <svg id="svgUnder" viewBox="0 0 900 900" aria-hidden="true"></svg>
+        <div class="grid" id="grid" role="application" aria-label="Sudoku board"></div>
+        <svg id="svgOver" viewBox="0 0 900 900" aria-hidden="true"></svg>
+        <div class="veil show" id="veil"><span class="dots">Building a board</span></div>
+      </div>
+
+      <div class="underboard">
+        <div class="pad" id="pad"></div>
+        <div class="tools">
+          <button type="button" id="btnNotes">Notes</button>
+          <button type="button" id="btnAuto">Auto‑pencil</button>
+          <button type="button" id="btnUndo">Undo</button>
+          <button type="button" id="btnCheck">Check</button>
+          <button type="button" id="btnHint">Hint</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============ CONSOLE RAIL ============ -->
+    <aside class="rail">
+
+      <section class="card">
+        <h2>Constraints <b id="cName">Classic</b></h2>
+        <div class="switches" id="switches"></div>
+      </section>
+
+      <section class="card">
+        <h2>Generator</h2>
+        <div class="diffs" id="diffs"></div>
+        <div class="seedrow">
+          <input id="seed" spellcheck="false" aria-label="Seed" placeholder="seed">
+          <button type="button" id="btnRoll" title="Random seed">↻</button>
+        </div>
+        <button class="deal" type="button" id="btnNew">Deal a board</button>
+      </section>
+
+      <section class="card">
+        <h2>Grading report <b id="clock">0:00</b></h2>
+        <dl class="meta">
+          <dt>Verdict</dt><dd class="band" id="mBand">—</dd>
+          <dt>Clues</dt><dd id="mClues">—</dd>
+          <dt>Hardest</dt><dd id="mPeak">—</dd>
+          <dt>Score</dt><dd id="mEffort">—</dd>
+        </dl>
+        <div class="log" id="log"></div>
+        <p class="status" id="status">Pick your constraints and deal a board.</p>
+      </section>
+
+      <section class="card">
+        <h2>Controls</h2>
+        <div class="legend">
+          <div><kbd>1–9</kbd><span>write a digit</span></div>
+          <div><kbd>⇧+1–9</kbd><span>toggle a pencil mark</span></div>
+          <div><kbd>N</kbd><span>notes mode on / off</span></div>
+          <div><kbd>← ↑ ↓ →</kbd><span>move the cursor</span></div>
+          <div><kbd>⌫</kbd><span>clear the cell</span></div>
+          <div><kbd>U</kbd><span>undo</span></div>
+          <div><kbd>H</kbd><span>hint — names the technique</span></div>
+        </div>
+      </section>
+
+    </aside>
+  </div>
+
+  <p class="foot">Every board is generated, checked for a unique solution, then solved a second time by a human‑technique solver — naked and hidden singles, locked candidates, pairs and triples, X‑wing, swordfish, XY‑ and XYZ‑wing, simple colouring, and depth‑one forcing. The verdict is the hardest technique the board genuinely requires, so “Nightmare” means nightmare rather than marketing. Seeds are shareable: the same seed and the same constraints always rebuild the same board.</p>
+</div>
+
+<script>
+"use strict";
+/* ============================================================================
+   0. PRIMITIVES
+   ========================================================================== */
+const N = 9, CELLS = 81, ALL = 511;
+const bit = d => 1 << (d - 1);
+const lowD = m => 32 - Math.clz32(m & -m);              // digit value of lowest set bit
+const highD = m => 32 - Math.clz32(m);                  // digit value of highest set bit
+function pc(m){ m = m - ((m >> 1) & 0x5555); m = (m & 0x3333) + ((m >> 2) & 0x3333);
+  m = (m + (m >> 4)) & 0x0f0f; return (m + (m >> 8)) & 0x1f; }
+function digits(m){ const a = []; while(m){ const b = m & -m; a.push(32 - Math.clz32(b)); m ^= b; } return a; }
+const rowOf = i => (i / 9) | 0, colOf = i => i % 9;
+
+function mulberry32(a){
+  return function(){
+    a |= 0; a = (a + 0x6D2B79F5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+function hashStr(s){ let h = 2166136261 >>> 0;
+  for(let i = 0; i < s.length; i++){ h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); }
+  return h >>> 0; }
+function shuffle(a, rnd){ for(let i = a.length - 1; i > 0; i--){ const j = (rnd() * (i + 1)) | 0; [a[i], a[j]] = [a[j], a[i]]; } return a; }
+
+/* Killer-cage combination table: key = size*100+sum -> array of digit arrays */
+const COMBO = new Map();
+(function(){
+  for(let m = 1; m < 512; m++){
+    const d = digits(m); let s = 0; for(const x of d) s += x;
+    const k = d.length * 100 + s;
+    if(!COMBO.has(k)) COMBO.set(k, []);
+    COMBO.get(k).push(d);
+  }
+})();
+const combosFor = (size, sum) => COMBO.get(size * 100 + sum) || [];
+
+/* ============================================================================
+   1. STRUCTURE — units and peers for a given constraint set
+   ========================================================================== */
+function buildStruct(cons, cages){
+  const units = [];
+  for(let r = 0; r < 9; r++){ const u = []; for(let c = 0; c < 9; c++) u.push(r * 9 + c); units.push(u); }
+  for(let c = 0; c < 9; c++){ const u = []; for(let r = 0; r < 9; r++) u.push(r * 9 + c); units.push(u); }
+  for(let b = 0; b < 9; b++){
+    const br = ((b / 3) | 0) * 3, bc = (b % 3) * 3, u = [];
+    for(let r = 0; r < 3; r++) for(let c = 0; c < 3; c++) u.push((br + r) * 9 + bc + c);
+    units.push(u);
+  }
+  const nLineUnits = units.length;                     // rows+cols+boxes only, before diagonals
+  if(cons.diagonal){
+    const a = [], b = [];
+    for(let i = 0; i < 9; i++){ a.push(i * 9 + i); b.push(i * 9 + (8 - i)); }
+    units.push(a, b);
+  }
+
+  const peerSets = Array.from({length: CELLS}, () => new Set());
+  for(const u of units) for(const i of u) for(const j of u) if(i !== j) peerSets[i].add(j);
+
+  const add = (i, dr, dc) => {
+    const r = rowOf(i) + dr, c = colOf(i) + dc;
+    if(r >= 0 && r < 9 && c >= 0 && c < 9) peerSets[i].add(r * 9 + c);
+  };
+  if(cons.antiKnight){
+    const M = [[1,2],[2,1],[-1,2],[-2,1],[1,-2],[2,-1],[-1,-2],[-2,-1]];
+    for(let i = 0; i < CELLS; i++) for(const [a, b] of M) add(i, a, b);
+  }
+  if(cons.antiKing){
+    for(let i = 0; i < CELLS; i++) for(let a = -1; a <= 1; a++) for(let b = -1; b <= 1; b++) if(a || b) add(i, a, b);
+  }
+  if(cages) for(const cg of cages) for(const i of cg.cells) for(const j of cg.cells) if(i !== j) peerSets[i].add(j);
+
+  return { units, nLineUnits, peers: peerSets.map(s => Array.from(s)) };
+}
+
+/* An "engine" bundles everything the propagator needs. */
+function makeEngine(cons, cages, thermos){
+  const st = buildStruct(cons, cages);
+  return { ...st, cages: cages || [], thermos: thermos || [], cons };
+}
+
+/* ============================================================================
+   2. PROPAGATION
+   ========================================================================== */
+function pruneThermo(cand, thermos){
+  let ch = 0;
+  for(const t of thermos){
+    let lo = 0;
+    for(const i of t){
+      const m = cand[i] & (ALL ^ ((1 << lo) - 1));
+      if(!m) return -1;
+      if(m !== cand[i]){ cand[i] = m; ch = 1; }
+      lo = lowD(m);
+    }
+    let hi = 10;
+    for(let k = t.length - 1; k >= 0; k--){
+      const i = t[k], m = cand[i] & ((1 << (hi - 1)) - 1);
+      if(!m) return -1;
+      if(m !== cand[i]){ cand[i] = m; ch = 1; }
+      hi = highD(m);
+    }
+  }
+  return ch;
+}
+
+/* bipartite matching: can these cells take exactly these digits, one each? */
+function canMatch(cells, ds, cand, skipCell, skipDigit){
+  const cs = [], dd = [];
+  for(const c of cells) if(c !== skipCell) cs.push(c);
+  let removed = false;
+  for(const d of ds){ if(!removed && d === skipDigit){ removed = true; continue; } dd.push(d); }
+  const n = cs.length;
+  const match = new Int8Array(n).fill(-1);
+  const seen = new Uint8Array(n);
+  const tryOne = ci => {
+    for(let k = 0; k < n; k++){
+      if(seen[k] || !(cand[cs[ci]] & bit(dd[k]))) continue;
+      seen[k] = 1;
+      if(match[k] < 0 || tryOne(match[k])){ match[k] = ci; return true; }
+    }
+    return false;
+  };
+  for(let ci = 0; ci < n; ci++){ seen.fill(0); if(!tryOne(ci)) return false; }
+  return true;
+}
+
+function pruneCages(cand, cages){
+  let ch = 0;
+  for(const cg of cages){
+    const cells = cg.cells, n = cells.length;
+    let settled = true;
+    for(const i of cells){ const m = cand[i]; if(m & (m - 1)){ settled = false; break; } }
+    if(settled) continue;
+    const allow = new Array(n).fill(0);
+    let feasible = false;
+    for(const combo of combosFor(n, cg.sum)){
+      if(!canMatch(cells, combo, cand, -1, -1)) continue;
+      feasible = true;
+      for(let ci = 0; ci < n; ci++){
+        for(const d of combo){
+          const b = bit(d);
+          if(!(cand[cells[ci]] & b) || (allow[ci] & b)) continue;
+          if(canMatch(cells, combo, cand, cells[ci], d)) allow[ci] |= b;
+        }
+      }
+    }
+    if(!feasible) return -1;
+    for(let ci = 0; ci < n; ci++){
+      const nv = cand[cells[ci]] & allow[ci];
+      if(!nv) return -1;
+      if(nv !== cand[cells[ci]]){ cand[cells[ci]] = nv; ch = 1; }
+    }
+  }
+  return ch;
+}
+
+/* Full constraint propagation. Returns -1 contradiction, else 0/1 changed.
+   Cage arithmetic is by far the most expensive step, so it only runs once the
+   cheap singles logic has been exhausted. */
+function reduceAll(cand, E, seen){
+  let any = 0;
+  outer: for(;;){
+    let changed = false;
+    for(let i = 0; i < CELLS; i++){
+      const m = cand[i];
+      if(!m) return -1;
+      if((m & (m - 1)) || seen[i]) continue;
+      seen[i] = 1;
+      for(const p of E.peers[i]){
+        if(cand[p] & m){ cand[p] &= ~m; if(!cand[p]) return -1; changed = true; }
+      }
+    }
+    for(const u of E.units){
+      for(let d = 1; d <= 9; d++){
+        const b = bit(d);
+        let cnt = 0, pos = -1, placed = false;
+        for(const i of u){
+          if(!(cand[i] & b)) continue;
+          if(cand[i] === b){ placed = true; break; }
+          cnt++; pos = i;
+        }
+        if(placed) continue;
+        if(cnt === 0) return -1;
+        if(cnt === 1){ cand[pos] = b; changed = true; }
+      }
+    }
+    if(changed){ any = 1; continue outer; }
+    if(E.thermos.length){
+      const r = pruneThermo(cand, E.thermos);
+      if(r < 0) return -1;
+      if(r){ any = 1; continue outer; }
+    }
+    if(E.cages.length){
+      const r = pruneCages(cand, E.cages);
+      if(r < 0) return -1;
+      if(r){ any = 1; continue outer; }
+    }
+    return any;
+  }
+}
+
+/* ============================================================================
+   3. BRUTE SOLVER — counts solutions (capped), or finds one at random
+   ========================================================================== */
+function search(cand, E, seen, limit, rnd, out){
+  if(reduceAll(cand, E, seen) < 0) return 0;
+  let best = -1, bestN = 10;
+  for(let i = 0; i < CELLS; i++){
+    const n = pc(cand[i]);
+    if(n > 1 && n < bestN){ bestN = n; best = i; if(n === 2) break; }
+  }
+  if(best < 0){ if(out && !out.grid){ out.grid = Int8Array.from(cand, m => lowD(m)); } return 1; }
+  let ds = digits(cand[best]);
+  if(rnd) shuffle(ds, rnd);
+  let total = 0;
+  for(const d of ds){
+    const c2 = cand.slice(), s2 = seen.slice();
+    c2[best] = bit(d);
+    total += search(c2, E, s2, limit - total, rnd, out);
+    if(total >= limit) return total;
+  }
+  return total;
+}
+function candFromGrid(g){
+  const c = new Int16Array(CELLS).fill(ALL);
+  for(let i = 0; i < CELLS; i++) if(g[i]) c[i] = bit(g[i]);
+  return c;
+}
+function countSolutions(g, E, limit){
+  return search(candFromGrid(g), E, new Uint8Array(CELLS), limit, null, null);
+}
+
+/* ============================================================================
+   4. HUMAN-TECHNIQUE SOLVER — this is what produces the difficulty grade
+   ========================================================================== */
+const TECH = {
+  naked:    { label: "Naked single",     cost: 1  },
+  hidden:   { label: "Hidden single",    cost: 2  },
+  thermo:   { label: "Thermometer range",cost: 4  },
+  cage:     { label: "Cage arithmetic",  cost: 6  },
+  locked:   { label: "Locked candidates",cost: 7  },
+  nPair:    { label: "Naked pair",       cost: 9  },
+  hPair:    { label: "Hidden pair",      cost: 11 },
+  nTriple:  { label: "Naked triple",     cost: 15 },
+  hTriple:  { label: "Hidden triple",    cost: 19 },
+  xwing:    { label: "X‑wing",           cost: 26 },
+  xywing:   { label: "XY‑wing",          cost: 30 },
+  xyzwing:  { label: "XYZ‑wing",         cost: 33 },
+  sword:    { label: "Swordfish",        cost: 36 },
+  colour:   { label: "Simple colouring", cost: 41 },
+  forcing:  { label: "Forcing chain",    cost: 62 }
+};
+/* Difficulty = how much logical work the board demands, weighted by how hard
+   the hardest step is. Grading on the peak technique alone does not survive
+   the variants: on a killer board cage arithmetic resolves the positions where
+   a fish or a wing would otherwise be needed, so the peak sits flat at "cage"
+   from 40 clues down to none while the real workload rises tenfold. Total
+   effort is the signal that stays monotone across every variant; the peak
+   rides on top of it so a board that genuinely needs a chain still ranks up. */
+const scoreOf = (peak, effort) => Math.round(effort + peak * 2.2);
+const BANDS = [
+  { key: "steady",     label: "Steady",     max: 55  },
+  { key: "tricky",     label: "Tricky",     max: 95  },
+  { key: "hard",       label: "Hard",       max: 165 },
+  { key: "diabolical", label: "Diabolical", max: 300 },
+  { key: "nightmare",  label: "Nightmare",  max: Infinity }
+];
+const bandOf = score => BANDS.findIndex(b => score <= b.max);
+/* A short board that still needs a chain is not a gentle board. The score sets
+   the band; the hardest step sets a floor under it. */
+function bandFor(peak, effort){
+  const b = bandOf(scoreOf(peak, effort));
+  if(peak >= TECH.forcing.cost) return Math.max(b, 3);
+  if(peak >= TECH.xwing.cost)   return Math.max(b, 2);
+  return b;
+}
+
+/* -- helpers shared by the techniques -- */
+const solvedMask = cand => { let s = 0; for(let i = 0; i < CELLS; i++) if(!(cand[i] & (cand[i] - 1))) s++; return s; };
+function sees(a, b, E){ return E.peers[a].includes(b); }
+
+/* place a digit and sweep it out of every peer */
+function place(cand, E, seen, i, b){
+  cand[i] = b; seen[i] = 1;
+  for(const p of E.peers[i]){
+    if(cand[p] & b){ cand[p] &= ~b; if(!cand[p]) return false; }
+  }
+  return true;
+}
+function techSingles(cand, E, seen){
+  for(let i = 0; i < CELLS; i++){
+    const m = cand[i];
+    if(m && !(m & (m - 1)) && !seen[i]){
+      if(!place(cand, E, seen, i, m)) return -1;
+      return { tech: "naked", cell: i, digit: lowD(m), changed: true };
+    }
+  }
+  return null;
+}
+function techHidden(cand, E, seen){
+  for(const u of E.units){
+    for(let d = 1; d <= 9; d++){
+      const b = bit(d);
+      let cnt = 0, pos = -1, placed = false;
+      for(const i of u){ if(!(cand[i] & b)) continue; if(cand[i] === b){ placed = true; break; } cnt++; pos = i; }
+      if(placed) continue;
+      if(cnt === 0) return -1;
+      if(cnt === 1){
+        if(!place(cand, E, seen, pos, b)) return -1;
+        return { tech: "hidden", cell: pos, digit: d, changed: true };
+      }
+    }
+  }
+  return null;
+}
+function techThermo(cand, E){
+  if(!E.thermos.length) return null;
+  const before = cand.slice();
+  const r = pruneThermo(cand, E.thermos);
+  if(r < 0) return -1;
+  if(!r) return null;
+  for(let i = 0; i < CELLS; i++) if(before[i] !== cand[i]) return { tech: "thermo", cell: i, changed: true };
+  return null;
+}
+function techCage(cand, E){
+  if(!E.cages.length) return null;
+  const before = cand.slice();
+  const r = pruneCages(cand, E.cages);
+  if(r < 0) return -1;
+  if(!r) return null;
+  for(let i = 0; i < CELLS; i++) if(before[i] !== cand[i]) return { tech: "cage", cell: i, changed: true };
+  return null;
+}
+/* locked candidates: box↔line intersections */
+function techLocked(cand, E){
+  for(let b = 0; b < 9; b++){
+    const br = ((b / 3) | 0) * 3, bc = (b % 3) * 3, box = [];
+    for(let r = 0; r < 3; r++) for(let c = 0; c < 3; c++) box.push((br + r) * 9 + bc + c);
+    for(let d = 1; d <= 9; d++){
+      const bt = bit(d);
+      const spots = box.filter(i => (cand[i] & bt) && cand[i] !== bt);
+      if(spots.length < 2 || box.some(i => cand[i] === bt)) continue;
+      const rs = new Set(spots.map(rowOf)), cs = new Set(spots.map(colOf));
+      if(rs.size === 1){
+        const r = spots[0] / 9 | 0; let did = false;
+        for(let c = 0; c < 9; c++){ const i = r * 9 + c; if(box.includes(i)) continue;
+          if(cand[i] & bt){ cand[i] &= ~bt; if(!cand[i]) return -1; did = true; } }
+        if(did) return { tech: "locked", cell: spots[0], digit: d, changed: true };
+      }
+      if(cs.size === 1){
+        const c = spots[0] % 9; let did = false;
+        for(let r = 0; r < 9; r++){ const i = r * 9 + c; if(box.includes(i)) continue;
+          if(cand[i] & bt){ cand[i] &= ~bt; if(!cand[i]) return -1; did = true; } }
+        if(did) return { tech: "locked", cell: spots[0], digit: d, changed: true };
+      }
+    }
+  }
+  // line -> box (claiming)
+  for(let li = 0; li < 18; li++){
+    const line = E.units[li];
+    for(let d = 1; d <= 9; d++){
+      const bt = bit(d);
+      const spots = line.filter(i => (cand[i] & bt) && cand[i] !== bt);
+      if(spots.length < 2 || line.some(i => cand[i] === bt)) continue;
+      const boxIdx = spots.map(i => ((rowOf(i) / 3) | 0) * 3 + ((colOf(i) / 3) | 0));
+      if(new Set(boxIdx).size !== 1) continue;
+      const br = ((boxIdx[0] / 3) | 0) * 3, bc = (boxIdx[0] % 3) * 3;
+      let did = false;
+      for(let r = 0; r < 3; r++) for(let c = 0; c < 3; c++){
+        const i = (br + r) * 9 + bc + c;
+        if(spots.includes(i)) continue;
+        if(cand[i] & bt){ cand[i] &= ~bt; if(!cand[i]) return -1; did = true; }
+      }
+      if(did) return { tech: "locked", cell: spots[0], digit: d, changed: true };
+    }
+  }
+  return null;
+}
+/* naked subsets of size k */
+function techNakedSet(cand, E, k, name){
+  for(const u of E.units){
+    const open = u.filter(i => pc(cand[i]) > 1);
+    if(open.length <= k) continue;
+    const idx = [];
+    const rec = (start, mask, chosen) => {
+      if(chosen.length === k){
+        if(pc(mask) !== k) return false;
+        let did = false;
+        for(const i of open){
+          if(chosen.includes(i)) continue;
+          if(cand[i] & mask){ cand[i] &= ~mask; if(!cand[i]) return "bad"; did = true; }
+        }
+        if(did){ idx.push(chosen.slice(), mask); return true; }
+        return false;
+      }
+      for(let s = start; s < open.length; s++){
+        const nm = mask | cand[open[s]];
+        if(pc(nm) > k) continue;
+        chosen.push(open[s]);
+        const r = rec(s + 1, nm, chosen);
+        if(r) return r;
+        chosen.pop();
+      }
+      return false;
+    };
+    const r = rec(0, 0, []);
+    if(r === "bad") return -1;
+    if(r) return { tech: name, cell: idx[0][0], changed: true };
+  }
+  return null;
+}
+/* hidden subsets of size k */
+function techHiddenSet(cand, E, k, name){
+  for(const u of E.units){
+    const open = u.filter(i => pc(cand[i]) > 1);
+    if(open.length <= k) continue;
+    const avail = [];
+    for(let d = 1; d <= 9; d++){
+      const b = bit(d);
+      if(u.some(i => cand[i] === b)) continue;
+      const spots = open.filter(i => cand[i] & b);
+      if(spots.length >= 2 && spots.length <= k) avail.push({ d, b, spots });
+    }
+    if(avail.length < k) continue;
+    const chosen = [];
+    const rec = start => {
+      if(chosen.length === k){
+        const cellSet = new Set();
+        let mask = 0;
+        for(const a of chosen){ a.spots.forEach(i => cellSet.add(i)); mask |= a.b; }
+        if(cellSet.size !== k) return false;
+        let did = false, first = -1;
+        for(const i of cellSet){
+          if(first < 0) first = i;
+          const nv = cand[i] & mask;
+          if(!nv) return "bad";
+          if(nv !== cand[i]){ cand[i] = nv; did = true; }
+        }
+        if(did){ chosen.first = first; return true; }
+        return false;
+      }
+      for(let s = start; s < avail.length; s++){
+        chosen.push(avail[s]);
+        const r = rec(s + 1);
+        if(r) return r;
+        chosen.pop();
+      }
+      return false;
+    };
+    const r = rec(0);
+    if(r === "bad") return -1;
+    if(r) return { tech: name, cell: chosen.first, changed: true };
+  }
+  return null;
+}
+/* fish (X-wing k=2, swordfish k=3) over rows and columns */
+function techFish(cand, E, k, name){
+  for(let orient = 0; orient < 2; orient++){
+    for(let d = 1; d <= 9; d++){
+      const b = bit(d);
+      const lines = [];
+      for(let l = 0; l < 9; l++){
+        const cellsL = [];
+        let placed = false;
+        for(let x = 0; x < 9; x++){
+          const i = orient ? x * 9 + l : l * 9 + x;
+          if(cand[i] === b){ placed = true; break; }
+          if(cand[i] & b) cellsL.push(x);
+        }
+        if(!placed && cellsL.length >= 2 && cellsL.length <= k) lines.push({ l, cellsL });
+      }
+      if(lines.length < k) continue;
+      const chosen = [];
+      const rec = start => {
+        if(chosen.length === k){
+          const cover = new Set();
+          for(const c of chosen) c.cellsL.forEach(x => cover.add(x));
+          if(cover.size !== k) return false;
+          let did = false, anchor = -1;
+          for(const x of cover){
+            for(let l = 0; l < 9; l++){
+              if(chosen.some(c => c.l === l)) continue;
+              const i = orient ? x * 9 + l : l * 9 + x;
+              if(cand[i] & b){ cand[i] &= ~b; if(!cand[i]) return "bad"; did = true;
+                if(anchor < 0) anchor = orient ? chosen[0].cellsL[0] * 9 + chosen[0].l : chosen[0].l * 9 + chosen[0].cellsL[0]; }
+            }
+          }
+          if(did){ chosen.anchor = anchor; return true; }
+          return false;
+        }
+        for(let s = start; s < lines.length; s++){
+          chosen.push(lines[s]);
+          const r = rec(s + 1);
+          if(r) return r;
+          chosen.pop();
+        }
+        return false;
+      };
+      const r = rec(0);
+      if(r === "bad") return -1;
+      if(r) return { tech: name, cell: chosen.anchor, digit: d, changed: true };
+    }
+  }
+  return null;
+}
+/* XY-wing  (pivot XY, wings XZ and YZ, Z is not in the pivot)
+   XYZ-wing (pivot XYZ, wings XZ and YZ, Z is in the pivot too) */
+function techWing(cand, E, xyz){
+  const pivotSize = xyz ? 3 : 2;
+  for(let p = 0; p < CELLS; p++){
+    if(pc(cand[p]) !== pivotSize) continue;
+    const wings = E.peers[p].filter(i => pc(cand[i]) === 2 && pc(cand[i] & cand[p]) >= 1);
+    for(let a = 0; a < wings.length; a++){
+      for(let b = a + 1; b < wings.length; b++){
+        const A = wings[a], B = wings[b];
+        if(cand[A] === cand[B]) continue;
+        if(pc(cand[A] | cand[B] | cand[p]) !== 3) continue;
+        const common = cand[A] & cand[B];             // the Z candidate
+        if(pc(common) !== 1) continue;
+        if(xyz ? !(cand[p] & common) : !!(cand[p] & common)) continue;
+        // each wing must contribute a digit the pivot also holds, and between
+        // them they must cover the pivot's non-Z digits
+        if((cand[p] & ~common & 511) !== ((cand[A] | cand[B]) & ~common & 511 & cand[p])) continue;
+        let did = false;
+        for(let i = 0; i < CELLS; i++){
+          if(i === p || i === A || i === B) continue;
+          if(!(cand[i] & common) || pc(cand[i]) === 1) continue;
+          if(!sees(i, A, E) || !sees(i, B, E)) continue;
+          if(xyz && !sees(i, p, E)) continue;
+          cand[i] &= ~common;
+          if(!cand[i]) return -1;
+          did = true;
+        }
+        if(did) return { tech: xyz ? "xyzwing" : "xywing", cell: p, digit: lowD(common), changed: true };
+      }
+    }
+  }
+  return null;
+}
+/* simple colouring on conjugate pairs of one digit */
+function techColour(cand, E){
+  for(let d = 1; d <= 9; d++){
+    const b = bit(d);
+    const nodes = [];
+    for(let i = 0; i < CELLS; i++) if((cand[i] & b) && pc(cand[i]) > 1) nodes.push(i);
+    if(nodes.length < 4) continue;
+    const links = new Map(nodes.map(i => [i, []]));
+    for(const u of E.units){
+      const spots = u.filter(i => (cand[i] & b) && pc(cand[i]) > 1);
+      if(u.some(i => cand[i] === b)) continue;
+      if(spots.length === 2){ links.get(spots[0]).push(spots[1]); links.get(spots[1]).push(spots[0]); }
+    }
+    const colour = new Map();
+    for(const start of nodes){
+      if(colour.has(start)) continue;
+      colour.set(start, 0);
+      const q = [start], comp = [start];
+      while(q.length){
+        const cur = q.pop();
+        for(const nx of links.get(cur)){
+          if(colour.has(nx)) continue;
+          colour.set(nx, 1 - colour.get(cur));
+          q.push(nx); comp.push(nx);
+        }
+      }
+      if(comp.length < 4) continue;
+      // rule 1: two same-coloured cells that see each other -> that colour is false
+      for(let x = 0; x < comp.length; x++) for(let y = x + 1; y < comp.length; y++){
+        if(colour.get(comp[x]) !== colour.get(comp[y])) continue;
+        if(!sees(comp[x], comp[y], E)) continue;
+        const bad = colour.get(comp[x]);
+        let did = false;
+        for(const i of comp) if(colour.get(i) === bad){ cand[i] &= ~b; if(!cand[i]) return -1; did = true; }
+        if(did) return { tech: "colour", cell: comp[x], digit: d, changed: true };
+      }
+      // rule 2: an outside cell seeing both colours cannot hold the digit
+      let did = false, anchor = -1;
+      for(let i = 0; i < CELLS; i++){
+        if(!(cand[i] & b) || comp.includes(i) || pc(cand[i]) === 1) continue;
+        const s0 = comp.some(j => colour.get(j) === 0 && sees(i, j, E));
+        const s1 = comp.some(j => colour.get(j) === 1 && sees(i, j, E));
+        if(s0 && s1){ cand[i] &= ~b; if(!cand[i]) return -1; did = true; if(anchor < 0) anchor = i; }
+      }
+      if(did) return { tech: "colour", cell: anchor, digit: d, changed: true };
+    }
+  }
+  return null;
+}
+/* depth-one forcing: assume a candidate, propagate; contradiction -> eliminate it */
+function techForcing(cand, E){
+  const order = [];
+  for(let i = 0; i < CELLS; i++){ const n = pc(cand[i]); if(n > 1) order.push([n, i]); }
+  order.sort((a, b) => a[0] - b[0]);
+  for(const [, i] of order.slice(0, 26)){
+    for(const d of digits(cand[i])){
+      const c2 = cand.slice(); c2[i] = bit(d);
+      if(reduceAll(c2, E, new Uint8Array(CELLS)) < 0){
+        cand[i] &= ~bit(d);
+        if(!cand[i]) return -1;
+        return { tech: "forcing", cell: i, digit: d, changed: true };
+      }
+    }
+  }
+  return null;
+}
+
+const PIPELINE = [
+  c => techSingles(c.cand, c.E, c.seen),
+  c => techHidden(c.cand, c.E, c.seen),
+  c => techThermo(c.cand, c.E),
+  c => techCage(c.cand, c.E),
+  c => techLocked(c.cand, c.E),
+  c => techNakedSet(c.cand, c.E, 2, "nPair"),
+  c => techHiddenSet(c.cand, c.E, 2, "hPair"),
+  c => techNakedSet(c.cand, c.E, 3, "nTriple"),
+  c => techHiddenSet(c.cand, c.E, 3, "hTriple"),
+  c => techFish(c.cand, c.E, 2, "xwing"),
+  c => techWing(c.cand, c.E, false),
+  c => techWing(c.cand, c.E, true),
+  c => techFish(c.cand, c.E, 3, "sword"),
+  c => techColour(c.cand, c.E),
+  c => techForcing(c.cand, c.E)
+];
+
+/* One logical step from a position. Returns null when stuck. */
+function oneStep(cand, E, seen){
+  const ctx = { cand, E, seen };
+  for(const step of PIPELINE){
+    const r = step(ctx);
+    if(r === -1) return -1;
+    if(r) return r;
+  }
+  return null;
+}
+
+/* Set up candidates from the clues. The clues themselves are not deductions,
+   so their peer sweep happens here and is never counted in the grade. */
+function initCand(givens, E){
+  const cand = candFromGrid(givens), seen = new Uint8Array(CELLS);
+  for(let i = 0; i < CELLS; i++){
+    if(!givens[i]) continue;
+    if(!place(cand, E, seen, i, bit(givens[i]))) return null;
+  }
+  if(E.thermos.length && pruneThermo(cand, E.thermos) < 0) return null;
+  return { cand, seen };
+}
+
+/* Grade a puzzle: returns {solved, peak, effort, tally} */
+function grade(givens, E){
+  const init = initCand(givens, E);
+  if(!init) return { solved: false };
+  const { cand, seen } = init;
+  const tally = new Map();
+  let peak = 0, effort = 0, guard = 0;
+  for(;;){
+    if(++guard > 900) return { solved: false };
+    let done = true;
+    for(let i = 0; i < CELLS; i++) if(pc(cand[i]) > 1){ done = false; break; }
+    if(done) break;
+    const r = oneStep(cand, E, seen);
+    if(r === -1 || !r) return { solved: false, peak, effort, tally };
+    const cost = TECH[r.tech].cost;
+    peak = Math.max(peak, cost);
+    effort += cost;
+    tally.set(r.tech, (tally.get(r.tech) || 0) + 1);
+  }
+  for(let i = 0; i < CELLS; i++) if(!cand[i]) return { solved: false };
+  const score = scoreOf(peak, effort);
+  return { solved: true, peak, effort, score, tally, cand, band: bandFor(peak, effort) };
+}
+
+/* ============================================================================
+   5. GENERATION
+   ========================================================================== */
+function fullGrid(E, rnd){
+  const out = {};
+  const cand = new Int16Array(CELLS).fill(ALL);
+  const n = search(cand, E, new Uint8Array(CELLS), 1, rnd, out);
+  return n ? out.grid : null;
+}
+
+function makeCages(sol, rnd, maxSize){
+  const cap = maxSize || 5;
+  const owner = new Int8Array(CELLS).fill(-1);
+  const cages = [];
+  const order = shuffle([...Array(CELLS).keys()], rnd);
+  for(const start of order){
+    if(owner[start] >= 0) continue;
+    const id = cages.length;
+    const cells = [start]; owner[start] = id;
+    // small cages pin down few combinations and make a board easier; big ones loosen it
+    const target = 2 + ((rnd() * (cap - 1.4)) | 0);
+    while(cells.length < target){
+      const grow = shuffle(cells.slice(), rnd);
+      let added = false;
+      for(const c of grow){
+        const nb = shuffle([[0,1],[0,-1],[1,0],[-1,0]], rnd);
+        for(const [dr, dc] of nb){
+          const r = rowOf(c) + dr, cc = colOf(c) + dc;
+          if(r < 0 || r > 8 || cc < 0 || cc > 8) continue;
+          const j = r * 9 + cc;
+          if(owner[j] >= 0) continue;
+          if(cells.some(x => sol[x] === sol[j])) continue;    // cages hold no repeats
+          owner[j] = id; cells.push(j); added = true; break;
+        }
+        if(added) break;
+      }
+      if(!added) break;
+    }
+    let sum = 0; for(const c of cells) sum += sol[c];
+    cages.push({ cells, sum });
+  }
+  return cages;
+}
+
+function makeThermos(sol, rnd, count){
+  const used = new Uint8Array(CELLS);
+  const thermos = [];
+  const DIR = [[0,1],[1,0],[0,-1],[-1,0],[1,1],[1,-1],[-1,1],[-1,-1]];
+  let tries = 0;
+  while(thermos.length < count && tries++ < 400){
+    const start = (rnd() * CELLS) | 0;
+    if(used[start] || sol[start] > 6) continue;
+    const path = [start];
+    let cur = start;
+    const want = 3 + ((rnd() * 3) | 0);
+    while(path.length < want){
+      const opts = [];
+      for(const [dr, dc] of DIR){
+        const r = rowOf(cur) + dr, c = colOf(cur) + dc;
+        if(r < 0 || r > 8 || c < 0 || c > 8) continue;
+        const j = r * 9 + c;
+        if(used[j] || path.includes(j)) continue;
+        if(sol[j] <= sol[cur]) continue;
+        opts.push(j);
+      }
+      if(!opts.length) break;
+      cur = opts[(rnd() * opts.length) | 0];
+      path.push(cur);
+    }
+    if(path.length >= 3){ path.forEach(i => used[i] = 1); thermos.push(path); }
+  }
+  return thermos;
+}
+
+function dig(sol, E, rnd, keepFloor){
+  const g = Int8Array.from(sol);
+  const order = shuffle([...Array(CELLS).keys()], rnd);
+  let clues = CELLS;
+  for(const i of order){
+    if(clues <= keepFloor) break;
+    const save = g[i];
+    g[i] = 0;
+    if(countSolutions(g, E, 2) !== 1) g[i] = save; else clues--;
+  }
+  return g;
+}
+/* Killer/thermo boards often need no clues at all — start empty and add back
+   only what uniqueness demands, then top up to the floor the target band wants. */
+function digFromEmpty(sol, E, rnd, floor){
+  const g = new Int8Array(CELLS);
+  const order = shuffle([...Array(CELLS).keys()], rnd);
+  if(countSolutions(g, E, 2) !== 1){
+    for(const i of order){
+      g[i] = sol[i];
+      if(countSolutions(g, E, 2) === 1) break;
+    }
+    for(const i of shuffle([...Array(CELLS).keys()], rnd)){   // drop redundant clues
+      if(!g[i]) continue;
+      const save = g[i]; g[i] = 0;
+      if(countSolutions(g, E, 2) !== 1) g[i] = save;
+    }
+  }
+  let clues = 0;
+  for(let i = 0; i < CELLS; i++) if(g[i]) clues++;
+  for(const i of order){                                       // top up for easier bands
+    if(clues >= floor) break;
+    if(g[i]) continue;
+    g[i] = sol[i]; clues++;
+  }
+  return g;
+}
+
+/* How many clues to leave standing, per target band. Without this every
+   variant board digs down to minimal and grades as a nightmare. */
+const FLOOR_PLAIN   = [38, 33, 28, 24, 17];
+const FLOOR_OVERLAY = [30, 23, 16, 8, 0];
+
+const frame = () => new Promise(r => requestAnimationFrame(() => r()));
+
+/* Difficulty is steered, not guessed. Each attempt is graded, and the clue
+   floor moves against the error: too easy digs deeper next time, too hard
+   leaves more clues standing. Cage size and thermometer count give the
+   variants a second lever, since clue count alone barely moves them. */
+async function generate(cons, targetBand, seedStr, onProgress){
+  const base = hashStr(seedStr);
+  let best = null;
+  const deadline = performance.now() + 9000;
+  // Killer cages carry a board on their own, so those start from an empty grid.
+  // Thermometers only supplement the clues, so they dig down from a full one.
+  const fromEmpty = cons.killer, overlay = cons.killer || cons.thermo;
+  const minF = fromEmpty ? 0 : 17, maxF = fromEmpty ? 48 : 52;
+  let floor = (fromEmpty ? FLOOR_OVERLAY : FLOOR_PLAIN)[targetBand];
+  let maxCage = [3, 3, 4, 5, 5][targetBand];
+  let nThermo = [9, 8, 6, 5, 4][targetBand];
+
+  for(let attempt = 0; attempt < 60; attempt++){
+    if(attempt && performance.now() > deadline) break;
+    onProgress(attempt);
+    await frame();
+    const rnd = mulberry32((base + attempt * 0x9E3779B1) >>> 0);
+    const step = attempt < 8 ? 3 : attempt < 20 ? 2 : 1;
+
+    const plainE = makeEngine(cons, null, null);
+    const sol = fullGrid(plainE, rnd);
+    if(!sol) continue;
+
+    const cages = cons.killer ? makeCages(sol, rnd, maxCage) : null;
+    const thermos = cons.thermo ? makeThermos(sol, rnd, nThermo) : null;
+    const E = makeEngine(cons, cages, thermos);
+
+    let givens;
+    try{
+      givens = fromEmpty ? digFromEmpty(sol, E, rnd, floor) : dig(sol, E, rnd, floor);
+    }catch(e){ continue; }
+
+    const g = grade(givens, E);
+    if(!g.solved){                       // beyond our technique set: ease off
+      floor = Math.min(maxF, floor + step);
+      continue;
+    }
+    const puzzle = { givens, solution: sol, cages: cages || [], thermos: thermos || [], cons, E, grade: g, seed: seedStr, attempt };
+    if(g.band === targetBand) return puzzle;
+    if(!best || Math.abs(g.band - targetBand) < Math.abs(best.grade.band - targetBand)) best = puzzle;
+    const tooEasy = g.band < targetBand;
+    const nextFloor = Math.min(maxF, Math.max(minF, floor + (tooEasy ? -step : step)));
+    // Uniqueness sets a hard limit on how few clues a board can carry, so the
+    // clue floor can saturate with the board still off target. When it does,
+    // loosen or tighten the overlay itself instead.
+    if(nextFloor === floor && overlay){
+      if(tooEasy){ nThermo = Math.max(3, nThermo - 1); maxCage = Math.min(5, maxCage + 1); }
+      else       { nThermo = Math.min(10, nThermo + 1); maxCage = Math.max(2, maxCage - 1); }
+    }
+    floor = nextFloor;
+  }
+  return best;
+}
+
+/* ============================================================================
+   6. UI
+   ========================================================================== */
+const CONSTRAINTS = [
+  { key: "diagonal",   name: "Diagonal (X)",   desc: "Both long diagonals hold 1–9" },
+  { key: "antiKnight", name: "Anti‑knight",    desc: "A chess knight's move apart? Not the same digit" },
+  { key: "antiKing",   name: "Anti‑king",      desc: "No digit touches its twin, even at a corner" },
+  { key: "killer",     name: "Killer cages",   desc: "Dashed cages add to their sum, no repeats inside" },
+  { key: "thermo",     name: "Thermometers",   desc: "Digits climb from the bulb to the tip" }
+];
+
+const S = {
+  cons: { diagonal: false, antiKnight: false, antiKing: false, killer: false, thermo: false },
+  target: 3,
+  puzzle: null,
+  grid: new Int8Array(CELLS),
+  notes: new Uint16Array(CELLS),
+  hist: [],
+  sel: 40,
+  notemode: false,
+  autoPencil: false,
+  bad: new Set(),
+  t0: 0, elapsed: 0, running: false, won: false, busy: false
+};
+
+const $ = id => document.getElementById(id);
+const gridEl = $("grid"), svgU = $("svgUnder"), svgO = $("svgOver");
+
+/* ---------- build static UI ---------- */
+const cellEls = [];
+for(let i = 0; i < CELLS; i++){
+  const d = document.createElement("div");
+  d.className = "cell";
+  d.dataset.i = i;
+  d.innerHTML = '<span class="val"></span><div class="notes"></div>';
+  const nd = d.querySelector(".notes");
+  for(let k = 1; k <= 9; k++) nd.appendChild(document.createElement("span"));
+  gridEl.appendChild(d);
+  cellEls.push(d);
+}
+const padEl = $("pad");
+for(let d = 1; d <= 9; d++){
+  const b = document.createElement("button");
+  b.type = "button";
+  b.innerHTML = d + '<span class="left"></span>';
+  b.addEventListener("click", () => enter(d));
+  padEl.appendChild(b);
+}
+const swEl = $("switches");
+for(const c of CONSTRAINTS){
+  const l = document.createElement("label");
+  l.className = "sw";
+  l.innerHTML = '<input type="checkbox" data-k="' + c.key + '"><span><span class="nm">' + c.name + '</span><span class="ds">' + c.desc + '</span></span>';
+  l.querySelector("input").addEventListener("change", e => {
+    S.cons[c.key] = e.target.checked;
+    $("cName").textContent = consName();
+  });
+  swEl.appendChild(l);
+}
+const diffEl = $("diffs");
+BANDS.forEach((b, i) => {
+  const btn = document.createElement("button");
+  btn.type = "button"; btn.textContent = b.label;
+  btn.addEventListener("click", () => { S.target = i; paintDiffs(); });
+  diffEl.appendChild(btn);
+});
+function paintDiffs(){ [...diffEl.children].forEach((b, i) => b.classList.toggle("on", i === S.target)); }
+function consName(){
+  const on = CONSTRAINTS.filter(c => S.cons[c.key]).map(c => c.name.replace(/\s*\(X\)/, ""));
+  return on.length ? on.join(" + ") : "Classic";
+}
+
+/* ---------- board painting ---------- */
+const NS = "http://www.w3.org/2000/svg";
+function el(tag, attrs){ const e = document.createElementNS(NS, tag); for(const k in attrs) e.setAttribute(k, attrs[k]); return e; }
+
+function drawStatic(){
+  svgU.innerHTML = ""; svgO.innerHTML = "";
+  const P = S.puzzle;
+
+  if(P && P.cons.diagonal){
+    for(const [x1, y1, x2, y2] of [[0,0,900,900],[900,0,0,900]])
+      svgU.appendChild(el("line", { x1, y1, x2, y2, stroke: "var(--pen)", "stroke-width": 3, opacity: .16 }));
+  }
+  if(P) for(const t of P.thermos){
+    const pts = t.map(i => (colOf(i) * 100 + 50) + "," + (rowOf(i) * 100 + 50)).join(" ");
+    svgU.appendChild(el("polyline", { points: pts, fill: "none", stroke: "var(--amber)", "stroke-width": 40,
+      "stroke-linecap": "round", "stroke-linejoin": "round", opacity: .22 }));
+    svgU.appendChild(el("circle", { cx: colOf(t[0]) * 100 + 50, cy: rowOf(t[0]) * 100 + 50, r: 36,
+      fill: "var(--amber)", opacity: .3 }));
+  }
+
+  // heavy 3x3 rules + frame, drawn over the cells
+  for(let k = 0; k <= 3; k++){
+    const p = k * 300;
+    svgO.appendChild(el("line", { x1: p, y1: 0, x2: p, y2: 900, stroke: "var(--rule)", "stroke-width": 3.4 }));
+    svgO.appendChild(el("line", { x1: 0, y1: p, x2: 900, y2: p, stroke: "var(--rule)", "stroke-width": 3.4 }));
+  }
+  // corner ticks
+  for(const [x, y, dx, dy] of [[0,0,1,1],[900,0,-1,1],[0,900,1,-1],[900,900,-1,-1]]){
+    svgO.appendChild(el("line", { x1: x, y1: y - dy * 14, x2: x, y2: y + dy * 26, stroke: "var(--rule)", "stroke-width": 3.4 }));
+    svgO.appendChild(el("line", { x1: x - dx * 14, y1: y, x2: x + dx * 26, y2: y, stroke: "var(--rule)", "stroke-width": 3.4 }));
+  }
+
+  if(P) for(const cg of P.cages){
+    const set = new Set(cg.cells), I = 9;
+    for(const i of cg.cells){
+      const x = colOf(i) * 100, y = rowOf(i) * 100;
+      const near = (dr, dc) => {
+        const r = rowOf(i) + dr, c = colOf(i) + dc;
+        return r >= 0 && r < 9 && c >= 0 && c < 9 && set.has(r * 9 + c);
+      };
+      const seg = (x1, y1, x2, y2) => svgO.appendChild(el("line", { x1, y1, x2, y2,
+        stroke: "var(--ink-soft)", "stroke-width": 2, "stroke-dasharray": "6 5", "stroke-linecap": "round" }));
+      if(!near(-1, 0)) seg(x + I, y + I, x + 100 - I, y + I);
+      if(!near(1, 0))  seg(x + I, y + 100 - I, x + 100 - I, y + 100 - I);
+      if(!near(0, -1)) seg(x + I, y + I, x + I, y + 100 - I);
+      if(!near(0, 1))  seg(x + 100 - I, y + I, x + 100 - I, y + 100 - I);
+    }
+    const head = Math.min(...cg.cells);
+    const t = el("text", { x: colOf(head) * 100 + 13, y: rowOf(head) * 100 + 31,
+      "font-family": "ui-monospace, SFMono-Regular, Menlo, monospace", "font-size": 24, "font-weight": 700,
+      fill: "var(--ink)", stroke: "var(--panel-2)", "stroke-width": 5, "paint-order": "stroke" });
+    t.textContent = cg.sum;
+    svgO.appendChild(t);
+  }
+}
+
+function autoCandidates(){
+  const E = S.puzzle.E;
+  const cand = new Int16Array(CELLS).fill(ALL);
+  for(let i = 0; i < CELLS; i++) if(S.grid[i]) cand[i] = bit(S.grid[i]);
+  for(let i = 0; i < CELLS; i++){
+    if(!S.grid[i]) continue;
+    const b = bit(S.grid[i]);
+    for(const p of E.peers[i]) if(!S.grid[p]) cand[p] &= ~b;
+  }
+  if(E.thermos.length) pruneThermo(cand, E.thermos);
+  if(E.cages.length) pruneCages(cand, E.cages);
+  return cand;
+}
+
+function paint(){
+  const P = S.puzzle;
+  const selVal = S.sel >= 0 ? S.grid[S.sel] : 0;
+  const auto = (S.autoPencil && P) ? autoCandidates() : null;
+  const peers = (P && S.sel >= 0) ? new Set(P.E.peers[S.sel]) : null;
+
+  for(let i = 0; i < CELLS; i++){
+    const c = cellEls[i], v = S.grid[i];
+    const given = P && P.givens[i] !== 0;
+    c.className = "cell" + (given ? " given" : "") + (S.won ? " done" : "");
+    if(i === S.sel) c.classList.add("sel");
+    else if(peers && peers.has(i)) c.classList.add("peer");
+    if(selVal && v === selVal && i !== S.sel) c.classList.add("match");
+    if(S.bad.has(i)) c.classList.add("bad");
+
+    const vs = c.firstChild;
+    vs.textContent = v || "";
+    const nd = c.lastChild;
+    const mask = v ? 0 : (auto ? (pc(auto[i]) > 1 ? auto[i] : 0) : S.notes[i]);
+    for(let d = 1; d <= 9; d++){
+      const sp = nd.children[d - 1];
+      const on = (mask >> (d - 1)) & 1;
+      sp.textContent = on ? d : "";
+      sp.className = (on && selVal === d) ? "hi" : "";
+    }
+  }
+  // digit counters on the pad
+  const counts = new Array(10).fill(0);
+  for(let i = 0; i < CELLS; i++) if(S.grid[i]) counts[S.grid[i]]++;
+  [...padEl.children].forEach((b, k) => {
+    const d = k + 1, left = 9 - counts[d];
+    b.querySelector(".left").textContent = left > 0 ? left : "";
+    b.classList.toggle("spent", left <= 0);
+  });
+}
+
+/* ---------- interaction ---------- */
+function push(i){ S.hist.push({ i, v: S.grid[i], n: S.notes[i] }); if(S.hist.length > 500) S.hist.shift(); }
+
+function enter(d){
+  const P = S.puzzle;
+  if(!P || S.won || S.sel < 0) return;
+  const i = S.sel;
+  if(P.givens[i]) return;
+  push(i);
+  if(S.notemode){
+    if(S.grid[i]) S.grid[i] = 0;
+    S.notes[i] ^= bit(d);
+  }else{
+    S.grid[i] = S.grid[i] === d ? 0 : d;
+    S.notes[i] = 0;
+    if(S.grid[i]) for(const p of P.E.peers[i]) if(!S.grid[p]) S.notes[p] &= ~bit(d);
+    const vs = cellEls[i].firstChild;
+    vs.classList.remove("set"); void vs.offsetWidth; vs.classList.add("set");
+  }
+  S.bad.delete(i);
+  startClock();
+  paint();
+  checkWin();
+}
+function erase(){
+  const P = S.puzzle;
+  if(!P || S.sel < 0 || P.givens[S.sel]) return;
+  push(S.sel);
+  S.grid[S.sel] = 0; S.notes[S.sel] = 0; S.bad.delete(S.sel);
+  paint();
+}
+function undo(){
+  const h = S.hist.pop();
+  if(!h) return;
+  S.grid[h.i] = h.v; S.notes[h.i] = h.n; S.bad.delete(h.i);
+  S.sel = h.i; S.won = false;
+  paint();
+}
+gridEl.addEventListener("pointerdown", e => {
+  const c = e.target.closest(".cell");
+  if(!c) return;
+  S.sel = +c.dataset.i;
+  paint();
+});
+document.addEventListener("keydown", e => {
+  if(e.target.tagName === "INPUT") return;
+  const k = e.key;
+  if(k >= "1" && k <= "9"){
+    const d = +k;
+    if(e.shiftKey){
+      if(!S.puzzle || S.sel < 0 || S.puzzle.givens[S.sel]) return;
+      push(S.sel); S.grid[S.sel] = 0; S.notes[S.sel] ^= bit(d); startClock(); paint();
+    }else enter(d);
+    e.preventDefault(); return;
+  }
+  const mv = { ArrowLeft: -1, ArrowRight: 1, ArrowUp: -9, ArrowDown: 9 };
+  if(k in mv){
+    let n = S.sel + mv[k];
+    if(k === "ArrowLeft" && colOf(S.sel) === 0) n = S.sel + 8;
+    if(k === "ArrowRight" && colOf(S.sel) === 8) n = S.sel - 8;
+    if(n < 0) n += CELLS; if(n >= CELLS) n -= CELLS;
+    S.sel = n; paint(); e.preventDefault(); return;
+  }
+  if(k === "Backspace" || k === "Delete" || k === "0"){ erase(); e.preventDefault(); return; }
+  if(k === "n" || k === "N"){ toggleNotes(); return; }
+  if(k === "u" || k === "U"){ undo(); return; }
+  if(k === "h" || k === "H"){ hint(); return; }
+  if(k === "c" || k === "C"){ check(); return; }
+});
+
+function toggleNotes(){
+  S.notemode = !S.notemode;
+  $("btnNotes").classList.toggle("on", S.notemode);
+  document.body.classList.toggle("notemode", S.notemode);
+}
+$("btnNotes").addEventListener("click", toggleNotes);
+$("btnAuto").addEventListener("click", () => {
+  S.autoPencil = !S.autoPencil;
+  $("btnAuto").classList.toggle("on", S.autoPencil);
+  paint();
+});
+$("btnUndo").addEventListener("click", undo);
+
+function check(){
+  const P = S.puzzle;
+  if(!P) return;
+  S.bad.clear();
+  let filled = 0;
+  for(let i = 0; i < CELLS; i++){
+    if(!S.grid[i]) continue;
+    filled++;
+    if(S.grid[i] !== P.solution[i]) S.bad.add(i);
+  }
+  paint();
+  if(!filled){ setStatus("Nothing to check yet.", ""); return; }
+  if(S.bad.size) setStatus(S.bad.size + (S.bad.size === 1 ? " digit is" : " digits are") + " wrong — marked in red.", "err");
+  else setStatus("All " + filled + " entries are correct so far.", "");
+}
+$("btnCheck").addEventListener("click", check);
+
+function hint(){
+  const P = S.puzzle;
+  if(!P) return;
+  // treat the player's correct entries as givens, then take one logical step
+  const work = new Int8Array(CELLS);
+  for(let i = 0; i < CELLS; i++) work[i] = (S.grid[i] && S.grid[i] === P.solution[i]) ? S.grid[i] : 0;
+  const wrong = [];
+  for(let i = 0; i < CELLS; i++) if(S.grid[i] && S.grid[i] !== P.solution[i]) wrong.push(i);
+  if(wrong.length){
+    S.bad = new Set(wrong);
+    paint();
+    setStatus("Fix the red " + (wrong.length === 1 ? "digit" : "digits") + " first — the logic can't run past a wrong entry.", "err");
+    return;
+  }
+  const init = initCand(work, P.E);
+  if(!init){ setStatus("Something in the grid contradicts itself — undo back to a clean position.", "err"); return; }
+  const { cand, seen } = init;
+  const r = oneStep(cand, P.E, seen);
+  if(!r || r === -1){ setStatus("No single step left — the board is finished or needs a fresh look.", ""); return; }
+  S.sel = r.cell;
+  paint();
+  const name = TECH[r.tech].label;
+  const rc = "r" + (rowOf(r.cell) + 1) + "c" + (colOf(r.cell) + 1);
+  const dg = r.digit ? (r.tech === "naked" || r.tech === "hidden" ? " places " + r.digit : " removes " + r.digit) : " narrows the options";
+  setStatus(name + " at " + rc + dg + ".", "");
+}
+$("btnHint").addEventListener("click", hint);
+
+function checkWin(){
+  const P = S.puzzle;
+  if(!P) return;
+  for(let i = 0; i < CELLS; i++) if(S.grid[i] !== P.solution[i]) return;
+  S.won = true; S.running = false;
+  paint();
+  setStatus("Solved — " + fmt(S.elapsed) + " on a " + BANDS[P.grade.band].label.toLowerCase() + " board.", "win");
+}
+
+/* ---------- clock ---------- */
+const fmt = ms => { const s = Math.floor(ms / 1000); return Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0"); };
+function startClock(){ if(!S.running && !S.won){ S.running = true; S.t0 = performance.now() - S.elapsed; } }
+setInterval(() => {
+  if(S.running){ S.elapsed = performance.now() - S.t0; $("clock").textContent = fmt(S.elapsed); }
+}, 250);
+
+function setStatus(txt, cls){ const e = $("status"); e.textContent = txt; e.className = "status " + (cls || ""); }
+
+/* ---------- report ---------- */
+function report(P){
+  const g = P.grade;
+  $("mBand").textContent = BANDS[g.band].label;
+  $("mBand").style.color = ["var(--ink-soft)", "var(--ink)", "var(--pen)", "var(--amber)", "var(--rose)"][g.band];
+  const clues = P.givens.reduce((a, v) => a + (v ? 1 : 0), 0);
+  $("mClues").textContent = clues + (clues === 0 ? " (cages only)" : "");
+  const pk = Object.values(TECH).find(t => t.cost === g.peak);
+  $("mPeak").textContent = pk ? pk.label : "—";
+  $("mEffort").textContent = g.score + " pts";
+
+  const log = $("log");
+  log.innerHTML = "";
+  const rows = [...g.tally.entries()].sort((a, b) => TECH[a[0]].cost - TECH[b[0]].cost);
+  const maxCt = Math.max(...rows.map(r => r[1]), 1);
+  for(const [k, ct] of rows){
+    const row = document.createElement("div");
+    row.className = "row" + (TECH[k].cost === g.peak ? " peak" : "");
+    row.innerHTML = '<span class="nm">' + TECH[k].label + '</span><span class="ct">×' + ct + "</span>";
+    log.appendChild(row);
+    const bar = document.createElement("div");
+    bar.className = "bar";
+    bar.innerHTML = '<i style="width:' + Math.round(ct / maxCt * 100) + '%"></i>';
+    log.appendChild(bar);
+  }
+}
+
+/* ---------- deal ---------- */
+function randomSeed(){
+  const A = "ACDEFGHJKLMNPQRTUVWXY34679";
+  let s = "";
+  for(let i = 0; i < 6; i++) s += A[(Math.random() * A.length) | 0];
+  return s;
+}
+$("btnRoll").addEventListener("click", () => { $("seed").value = randomSeed(); });
+
+async function deal(){
+  if(S.busy) return;
+  S.busy = true;
+  const btn = $("btnNew");
+  btn.disabled = true;
+  const veil = $("veil");
+  veil.className = "veil show";
+  veil.innerHTML = '<span class="dots">Searching for a ' + BANDS[S.target].label.toLowerCase() + " board</span>";
+  setStatus("Generating, then grading with the logic solver…", "");
+
+  const seed = ($("seed").value.trim() || randomSeed()).toUpperCase();
+  $("seed").value = seed;
+  const cons = { ...S.cons };
+
+  const P = await generate(cons, S.target, seed, a => {
+    if(a > 3) veil.innerHTML = '<span class="dots">Attempt ' + (a + 1) + " — grading</span>";
+  });
+
+  btn.disabled = false; S.busy = false;
+  if(!P){
+    veil.className = "veil";
+    setStatus("That combination of rules wouldn't settle. Try a different seed or drop a constraint.", "err");
+    return;
+  }
+  veil.className = "veil";
+  S.puzzle = P;
+  S.grid = Int8Array.from(P.givens);
+  S.notes = new Uint16Array(CELLS);
+  S.hist = []; S.bad.clear();
+  S.won = false; S.running = false; S.elapsed = 0; $("clock").textContent = "0:00";
+  S.sel = P.givens.findIndex(v => !v);
+  if(S.sel < 0) S.sel = 0;
+  drawStatic();
+  paint();
+  report(P);
+  const asked = BANDS[S.target].label, got = BANDS[P.grade.band].label;
+  if(asked === got) setStatus("Graded " + got.toLowerCase() + ". Clock starts on your first digit.", "");
+  else setStatus("Closest it could find was " + got.toLowerCase() + ", not " + asked.toLowerCase() + " — deal again for another draw.", "");
+}
+$("btnNew").addEventListener("click", deal);
+
+/* ---------- theme ---------- */
+$("themeBtn").addEventListener("click", () => {
+  const cur = document.documentElement.getAttribute("data-theme");
+  const dark = cur ? cur === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
+  document.documentElement.setAttribute("data-theme", dark ? "light" : "dark");
+});
+
+/* ---------- boot ---------- */
+paintDiffs();
+$("seed").value = randomSeed();
+$("cName").textContent = "Classic";
+drawStatic();
+paint();
+deal();
+</script>
+</body>
+</html>
