@@ -75,14 +75,28 @@ function parseInto(root, html){
 const byId = new Map();
 const documentEl = new El("html");
 const body = new El("body");
+const docListeners = {};
 const document = {
   documentElement: documentEl, body,
   createElement: t => new El(t),
   createElementNS: (ns, t) => new El(t),
   getElementById: id => byId.get(id) || null,
-  addEventListener: () => {},
+  addEventListener: (t, f) => { (docListeners[t] ||= []).push(f); },
   querySelector: () => null
 };
+/* fire a keydown at the document, the way the page's global handler sees it */
+function pressKey(key, opts = {}){
+  const ev = {
+    key,
+    code: opts.code || (key === " " ? "Space" : ""),
+    shiftKey: !!opts.shiftKey,
+    target: { tagName: opts.on || "DIV" },
+    preventDefault(){ this.defaultPrevented = true; },
+    defaultPrevented: false
+  };
+  (docListeners.keydown || []).forEach(f => f(ev));
+  return ev;
+}
 
 /* pre-register every id the page looks up */
 const src = fs.readFileSync(HTML_PATH, "utf8");
@@ -134,6 +148,34 @@ ok(byId.get("log").childNodes.length > 0, "technique log has " + byId.get("log")
 ok(byId.get("grid").childNodes.length === 81, "81 cells built");
 ok(byId.get("pad").childNodes.length === 9, "9 pad buttons built");
 ok(byId.get("switches").childNodes.length === 5, "5 constraint switches built");
+
+/* the difficulty dial offers four targets — "Steady" is graded but not offered */
+const diffLabels = byId.get("diffs").childNodes.map(b => b.textContent);
+ok(diffLabels.length === 4, "4 difficulty buttons built, got " + diffLabels.length);
+ok(!diffLabels.some(l => /steady/i.test(l)), "Steady is not offered: " + diffLabels.join(" / "));
+ok(diffLabels.join(",") === "Tricky,Hard,Diabolical,Nightmare", "dial reads " + diffLabels.join(" → "));
+/* each button must still map to its true band index, not its position */
+ok(byId.get("diffs").childNodes.every((b, i) => +b.dataset.band === i + 1), "buttons carry their real band index");
+
+/* Space toggles notes mode, and so does N */
+const wasNotes = S.notemode;
+const spaceEv = pressKey(" ");
+ok(S.notemode === !wasNotes, "Space toggles notes mode on");
+ok(spaceEv.defaultPrevented, "Space is prevented from scrolling the page");
+pressKey(" ");
+ok(S.notemode === wasNotes, "Space toggles notes mode back off");
+pressKey("n");
+ok(S.notemode === !wasNotes, "N still toggles notes mode");
+pressKey("n");
+/* some browsers/layouts report the key differently; e.code is the fallback */
+const codeOnly = S.notemode;
+pressKey("Unidentified", { code: "Space" });
+ok(S.notemode === !codeOnly, "Space recognised via e.code when key is unhelpful");
+pressKey("Unidentified", { code: "Space" });
+/* a focused button keeps its own Space press instead of firing twice */
+const beforeBtn = S.notemode;
+pressKey(" ", { on: "BUTTON" });
+ok(S.notemode === beforeBtn, "Space on a focused button does not double-fire");
 ok(byId.get("svgOver").childNodes.length > 0, "board rules drawn: " + byId.get("svgOver").childNodes.length + " shapes");
 
 /* the rendered grid must show exactly the givens */

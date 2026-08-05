@@ -25,6 +25,10 @@ and hidden pairs and triples, X-wing, swordfish, XY-wing, XYZ-wing, simple
 colouring, and depth-one forcing. The console reports the technique tally, the
 hardest step required, and a score.
 
+The dial offers **Tricky, Hard, Diabolical and Nightmare**. A fifth band,
+Steady, still exists in the scale so that a board which comes out easy is
+reported honestly — it is simply never offered as a target.
+
 Two things worth knowing if you tune this:
 
 **Bands are a composite dominated by total solving effort, with the hardest
@@ -50,7 +54,7 @@ same board.
 | ---------- | ----------------------------- |
 | `1`–`9`    | Write a digit                 |
 | `⇧`+`1`–`9`| Toggle a pencil mark          |
-| `N`        | Notes mode on / off           |
+| `Space`    | Notes mode on / off (or `N`)  |
 | Arrow keys | Move the cursor               |
 | `⌫`        | Clear the cell                |
 | `U`        | Undo                          |
@@ -68,7 +72,7 @@ Runs two suites, neither of which needs a browser or any dependency:
 - `tests/engine.test.mjs` — solution grids satisfy every constraint combination,
   cages and thermometers stay consistent with their solution, generated boards
   have exactly one solution, the human solver's answer matches ground truth, and
-  the difficulty dial sweeps all five bands on each variant.
+  the difficulty dial reaches every band on each variant.
 - `tests/ui.test.mjs` — runs the entire page script under a minimal DOM shim, so
   dealing, painting, hints, undo, check, the win state and the cage/thermometer
   rendering are all exercised.

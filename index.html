@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="light dark">
 <meta name="description" content="Variant sudoku with stackable constraints and a solver that grades every board by the techniques it actually requires.">
-<title>CONSTRAINT — variant sudoku for people who finished hard</title>
+<title>Diabolical Sudoku — variant sudoku for people who finished hard</title>
 </head>
 <body>
 <style>
@@ -93,23 +93,13 @@ body{
 .masthead{display:flex;align-items:flex-end;justify-content:space-between;gap:24px;flex-wrap:wrap}
 h1{
   margin:0;
-  font-size:clamp(38px,7.5vw,72px);
+  font-size:clamp(34px,6.2vw,60px);
   line-height:.86;
   font-weight:800;
   letter-spacing:-.045em;
   transform:scaleX(.93);
   transform-origin:left bottom;
   text-wrap:balance;
-}
-.tag{
-  margin:14px 0 0;
-  font-family:var(--mono);
-  font-size:11.5px;
-  letter-spacing:.13em;
-  text-transform:uppercase;
-  color:var(--ink-soft);
-  max-width:52ch;
-  line-height:1.7;
 }
 .themebtn{
   font-family:var(--mono);font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;
@@ -227,7 +217,7 @@ body.notemode .pad button{color:var(--pencil);font-size:clamp(13px,2.4vw,17px)}
 .sw .ds{font-family:var(--mono);font-size:9.5px;color:var(--ink-faint);line-height:1.55;display:block;margin-top:2px}
 
 /* difficulty */
-.diffs{display:grid;grid-template-columns:repeat(5,1fr);gap:0;border:1px solid var(--hair);border-radius:2px;overflow:hidden;margin-bottom:12px}
+.diffs{display:grid;grid-auto-flow:column;grid-auto-columns:1fr;gap:0;border:1px solid var(--hair);border-radius:2px;overflow:hidden;margin-bottom:12px}
 .diffs button{
   border:none;border-right:1px solid var(--hair);background:var(--panel-2);color:var(--ink-soft);
   font-family:var(--mono);font-size:9px;letter-spacing:.06em;text-transform:uppercase;
@@ -281,7 +271,8 @@ body.notemode .pad button{color:var(--pencil);font-size:clamp(13px,2.4vw,17px)}
 .status.err{color:var(--rose)}
 
 .legend{display:flex;flex-direction:column;gap:7px;font-family:var(--mono);font-size:10px;color:var(--ink-soft);line-height:1.5}
-.legend div{display:grid;grid-template-columns:52px 1fr;gap:9px}
+.legend div{display:grid;grid-template-columns:60px 1fr;gap:9px}
+.legend b{font-weight:700;color:var(--ink)}
 .legend kbd{
   font-family:var(--mono);font-size:9px;background:var(--panel-2);border:1px solid var(--hair);
   border-radius:2px;padding:2px 0;text-align:center;color:var(--ink);
@@ -299,19 +290,12 @@ body.notemode .pad button{color:var(--pencil);font-size:clamp(13px,2.4vw,17px)}
 @keyframes dots{0%{content:""}25%{content:"."}50%{content:".."}75%{content:"..."}}
 @media (prefers-reduced-motion:reduce){.dots::after{content:"..."; animation:none}}
 
-.foot{
-  margin-top:34px;padding-top:14px;border-top:1px solid var(--hair);
-  font-family:var(--mono);font-size:10px;color:var(--ink-faint);line-height:1.8;max-width:70ch;
-}
 </style>
 
 <div class="wrap">
 
   <header class="masthead">
-    <div>
-      <h1>CONSTRAINT</h1>
-      <p class="tag">Variant sudoku with a solver that grades what it built. Stack the rules, dial the difficulty past where the shops stop, and the console tells you which techniques the board will actually demand.</p>
-    </div>
+    <h1>DIABOLICAL<br>SUDOKU</h1>
     <button class="themebtn" id="themeBtn" type="button">Invert</button>
   </header>
 
@@ -331,7 +315,7 @@ body.notemode .pad button{color:var(--pencil);font-size:clamp(13px,2.4vw,17px)}
       <div class="underboard">
         <div class="pad" id="pad"></div>
         <div class="tools">
-          <button type="button" id="btnNotes">Notes</button>
+          <button type="button" id="btnNotes" title="Notes mode — Space">Notes</button>
           <button type="button" id="btnAuto">Auto‑pencil</button>
           <button type="button" id="btnUndo">Undo</button>
           <button type="button" id="btnCheck">Check</button>
@@ -375,7 +359,7 @@ body.notemode .pad button{color:var(--pencil);font-size:clamp(13px,2.4vw,17px)}
         <div class="legend">
           <div><kbd>1–9</kbd><span>write a digit</span></div>
           <div><kbd>⇧+1–9</kbd><span>toggle a pencil mark</span></div>
-          <div><kbd>N</kbd><span>notes mode on / off</span></div>
+          <div><kbd>Space</kbd><span>notes mode on / off (or <b>N</b>)</span></div>
           <div><kbd>← ↑ ↓ →</kbd><span>move the cursor</span></div>
           <div><kbd>⌫</kbd><span>clear the cell</span></div>
           <div><kbd>U</kbd><span>undo</span></div>
@@ -386,7 +370,6 @@ body.notemode .pad button{color:var(--pencil);font-size:clamp(13px,2.4vw,17px)}
     </aside>
   </div>
 
-  <p class="foot">Every board is generated, checked for a unique solution, then solved a second time by a human‑technique solver — naked and hidden singles, locked candidates, pairs and triples, X‑wing, swordfish, XY‑ and XYZ‑wing, simple colouring, and depth‑one forcing. The verdict is the hardest technique the board genuinely requires, so “Nightmare” means nightmare rather than marketing. Seeds are shareable: the same seed and the same constraints always rebuild the same board.</p>
 </div>
 
 <script>
@@ -651,8 +634,10 @@ const TECH = {
    effort is the signal that stays monotone across every variant; the peak
    rides on top of it so a board that genuinely needs a chain still ranks up. */
 const scoreOf = (peak, effort) => Math.round(effort + peak * 2.2);
+/* "steady" stays in the scale so an easy board is still reported honestly,
+   but it is not offered as a target — the point of this game is harder boards. */
 const BANDS = [
-  { key: "steady",     label: "Steady",     max: 55  },
+  { key: "steady",     label: "Steady",     max: 55,  selectable: false },
   { key: "tricky",     label: "Tricky",     max: 95  },
   { key: "hard",       label: "Hard",       max: 165 },
   { key: "diabolical", label: "Diabolical", max: 300 },
@@ -1300,12 +1285,14 @@ for(const c of CONSTRAINTS){
 }
 const diffEl = $("diffs");
 BANDS.forEach((b, i) => {
+  if(b.selectable === false) return;
   const btn = document.createElement("button");
   btn.type = "button"; btn.textContent = b.label;
+  btn.dataset.band = i;
   btn.addEventListener("click", () => { S.target = i; paintDiffs(); });
   diffEl.appendChild(btn);
 });
-function paintDiffs(){ [...diffEl.children].forEach((b, i) => b.classList.toggle("on", i === S.target)); }
+function paintDiffs(){ [...diffEl.children].forEach(b => b.classList.toggle("on", +b.dataset.band === S.target)); }
 function consName(){
   const on = CONSTRAINTS.filter(c => S.cons[c.key]).map(c => c.name.replace(/\s*\(X\)/, ""));
   return on.length ? on.join(" + ") : "Classic";
@@ -1481,6 +1468,11 @@ document.addEventListener("keydown", e => {
     S.sel = n; paint(); e.preventDefault(); return;
   }
   if(k === "Backspace" || k === "Delete" || k === "0"){ erase(); e.preventDefault(); return; }
+  if(k === " " || k === "Spacebar" || e.code === "Space"){
+    // let a focused button keep its own space press rather than firing twice
+    if(e.target.tagName === "BUTTON") return;
+    toggleNotes(); e.preventDefault(); return;
+  }
   if(k === "n" || k === "N"){ toggleNotes(); return; }
   if(k === "u" || k === "U"){ undo(); return; }
   if(k === "h" || k === "H"){ hint(); return; }
