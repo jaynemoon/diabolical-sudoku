@@ -48,9 +48,13 @@ class El {
     walk(this); return out;
   }
   closest(sel){
-    const want = sel.replace(/^\./, "");
+    const isClass = sel.startsWith(".");
+    const want = isClass ? sel.slice(1) : sel.toUpperCase();
     let n = this;
-    while(n){ if(n._cls && n._cls().includes(want)) return n; n = n.parentNode; }
+    while(n){
+      if(isClass ? (n._cls && n._cls().includes(want)) : n.tagName === want) return n;
+      n = n.parentNode;
+    }
     return null;
   }
   dispatch(type, ev){ (this.listeners[type] || []).forEach(f => f(ev || {})); }
@@ -200,6 +204,64 @@ S.sel = empty; sandbox.__enter(bad);
 sandbox.__check();
 ok(S.bad.has(empty) === (bad !== P.solution[empty]), "Check flags the wrong digit");
 sandbox.__undo();
+
+/* Mouse model: right button = notes, left click on the board = back to pen.
+   The invariant that matters is that notes mode can never get stuck on. */
+{
+  const rightClick = (host, target) => {
+    const ev = { target, button: 2, preventDefault(){ this.defaultPrevented = true; }, defaultPrevented: false };
+    byId.get(host).dispatch("contextmenu", ev);
+    return ev;
+  };
+  const leftClick = (cellIdx) => {
+    const ev = { target: byId.get("grid").childNodes[cellIdx], button: 0 };
+    byId.get("grid").dispatch("pointerdown", ev);
+    return ev;
+  };
+
+  const cell = [...Array(81).keys()].find(i => !P.givens[i] && !S.grid[i]);
+  const other = [...Array(81).keys()].find(i => !P.givens[i] && !S.grid[i] && i !== cell);
+  const padBtn = byId.get("pad").childNodes[4];        // the "5" key
+
+  S.notemode = false;
+  leftClick(cell);
+  ok(S.sel === cell, "left-clicking a cell selects it");
+
+  const ev = rightClick("pad", padBtn);
+  ok(ev.defaultPrevented, "the OS context menu is suppressed on the pad");
+  ok(S.notemode === true, "right-clicking a pad digit switches notes on");
+  ok(S.notes[cell] === (1 << 4), "…and pencils that digit into the selected cell");
+  ok(S.grid[cell] === 0, "a pencil mark is not written as a digit");
+
+  rightClick("pad", padBtn);
+  ok(S.notes[cell] === 0, "right-clicking the same digit again removes the mark");
+  ok(S.notemode === true, "notes mode stays on while pencilling");
+
+  /* right-clicking a cell re-targets without dropping out of notes */
+  const cev = rightClick("grid", byId.get("grid").childNodes[other]);
+  ok(cev.defaultPrevented, "the OS context menu is suppressed on the board");
+  ok(S.sel === other, "right-clicking a cell moves the selection");
+  ok(S.notemode === true, "right-clicking a cell keeps notes mode on");
+
+  /* the escape hatch: any plain left click returns to writing digits */
+  leftClick(cell);
+  ok(S.sel === cell, "left-clicking selects while in notes mode");
+  ok(S.notemode === false, "left-clicking a cell drops back to pen mode");
+  ok(byId.get("btnNotes").className.includes("on") === false, "the Notes button unlights with it");
+
+  /* and a digit typed after that click is a real digit, not a mark */
+  sandbox.__enter(P.solution[cell]);
+  ok(S.grid[cell] === P.solution[cell], "typing after a left click writes a digit, not a pencil mark");
+  sandbox.__undo();
+
+  const givenCell = [...Array(81).keys()].find(i => P.givens[i]);
+  S.sel = givenCell;
+  rightClick("pad", padBtn);
+  ok(S.notes[givenCell] === 0, "a given cell refuses pencil marks");
+
+  S.notemode = false;
+  sandbox.__paint();
+}
 
 /* hint names a real technique */
 sandbox.__hint();

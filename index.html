@@ -117,7 +117,7 @@ h1{
    BOARD
    ============================================================ */
 .boardwrap{
-  position:relative;width:100%;max-width:624px;aspect-ratio:1/1;margin:0 auto;
+  position:relative;width:100%;max-width:624px;aspect-ratio:1/1;margin:0;
   container-type:inline-size;
   background:var(--panel-2);
   box-shadow:var(--shadow);
@@ -167,7 +167,7 @@ h1{
 /* ============================================================
    PAD + BUTTONS
    ============================================================ */
-.underboard{max-width:624px;margin:20px auto 0;display:flex;flex-direction:column;gap:12px}
+.underboard{max-width:624px;margin:20px 0 0;display:flex;flex-direction:column;gap:12px}
 .pad{display:grid;grid-template-columns:repeat(9,1fr);gap:6px}
 .pad button{
   aspect-ratio:1/1.05;border:1px solid var(--hair);background:var(--panel-2);color:var(--ink);
@@ -271,7 +271,7 @@ body.notemode .pad button{color:var(--pencil);font-size:clamp(13px,2.4vw,17px)}
 .status.err{color:var(--rose)}
 
 .legend{display:flex;flex-direction:column;gap:7px;font-family:var(--mono);font-size:10px;color:var(--ink-soft);line-height:1.5}
-.legend div{display:grid;grid-template-columns:60px 1fr;gap:9px}
+.legend div{display:grid;grid-template-columns:74px 1fr;gap:9px;align-items:start}
 .legend b{font-weight:700;color:var(--ink)}
 .legend kbd{
   font-family:var(--mono);font-size:9px;background:var(--panel-2);border:1px solid var(--hair);
@@ -359,6 +359,8 @@ body.notemode .pad button{color:var(--pencil);font-size:clamp(13px,2.4vw,17px)}
         <div class="legend">
           <div><kbd>1–9</kbd><span>write a digit</span></div>
           <div><kbd>⇧+1–9</kbd><span>toggle a pencil mark</span></div>
+          <div><kbd>Right‑click</kbd><span>a pad digit to switch to notes and pencil it in</span></div>
+          <div><kbd>Click</kbd><span>a cell to select it and go back to writing digits</span></div>
           <div><kbd>Space</kbd><span>notes mode on / off (or <b>N</b>)</span></div>
           <div><kbd>← ↑ ↓ →</kbd><span>move the cursor</span></div>
           <div><kbd>⌫</kbd><span>clear the cell</span></div>
@@ -1268,6 +1270,8 @@ const padEl = $("pad");
 for(let d = 1; d <= 9; d++){
   const b = document.createElement("button");
   b.type = "button";
+  b.dataset.d = d;
+  b.title = "Left click writes " + d + " — right click switches to notes and pencils it in";
   b.innerHTML = d + '<span class="left"></span>';
   b.addEventListener("click", () => enter(d));
   padEl.appendChild(b);
@@ -1428,6 +1432,18 @@ function enter(d){
   paint();
   checkWin();
 }
+/* Toggle a single pencil mark without touching notes mode. This is what the
+   right button writes, so notes can be made mid-solve without changing mode. */
+function note(i, d){
+  const P = S.puzzle;
+  if(!P || S.won || i < 0 || P.givens[i]) return;
+  push(i);
+  if(S.grid[i]) S.grid[i] = 0;
+  S.notes[i] ^= bit(d);
+  S.bad.delete(i);
+  startClock();
+  paint();
+}
 function erase(){
   const P = S.puzzle;
   if(!P || S.sel < 0 || P.givens[S.sel]) return;
@@ -1442,9 +1458,31 @@ function undo(){
   S.sel = h.i; S.won = false;
   paint();
 }
+/* A plain left click means "I am writing digits here", so it always drops back
+   to pen mode. Notes can therefore never get stuck on: one click on the board
+   and you are writing real digits again. */
 gridEl.addEventListener("pointerdown", e => {
   const c = e.target.closest(".cell");
   if(!c) return;
+  S.sel = +c.dataset.i;
+  if(e.button === 0 && S.notemode) toggleNotes();
+  paint();
+});
+/* The right button — also Control-click and a two-finger tap on a Mac trackpad
+   — is the notes button. On a pad digit it switches notes on and pencils that
+   digit in. On a cell it just moves the selection, without dropping out of
+   notes, so a run of marks can be spread across several cells. */
+padEl.addEventListener("contextmenu", e => {
+  const b = e.target.closest("button");
+  if(!b) return;
+  e.preventDefault();
+  if(!S.notemode) toggleNotes();
+  note(S.sel, +b.dataset.d);
+});
+gridEl.addEventListener("contextmenu", e => {
+  const c = e.target.closest(".cell");
+  if(!c) return;
+  e.preventDefault();          // keep the OS menu off the board
   S.sel = +c.dataset.i;
   paint();
 });
