@@ -40,6 +40,37 @@ for(const { name, c } of COMBOS){
   console.log("  " + name.padEnd(14) + (g ? "ok" : "NO GRID"));
 }
 
+/* ---- 1b. an over-constrained rule set must starve, not hang ---- */
+console.log("\n[1b] over-constrained rules give up instead of locking the page");
+{
+  const cons = { diagonal: true, antiKnight: true, antiKing: true, killer: false, thermo: false };
+  const eng = E.makeEngine(cons, null, null);
+  const t0 = Date.now();
+  let starved = false, grid = null;
+  E.beginBudget(400000);
+  try { grid = E.fullGrid(eng, E.mulberry32(7)); }
+  catch(err){ if(err === E.BUDGET) starved = true; else throw err; }
+  E.endBudget();
+  const ms = Date.now() - t0;
+  ok(starved && !grid, "all three cell rules hit the budget rather than running on");
+  ok(ms < 8000, "and it gave up in " + ms + "ms");
+  console.log("  diagonal+knight+king: starved after 400k nodes in " + ms + "ms");
+
+  // any two of the three must still work, and comfortably inside the budget
+  for(const [name, c] of [["diag+knight", {diagonal:1,antiKnight:1}],
+                          ["diag+king",   {diagonal:1,antiKing:1}],
+                          ["knight+king", {antiKnight:1,antiKing:1}]]){
+    const e2 = E.makeEngine({ diagonal:false, antiKnight:false, antiKing:false, killer:false, thermo:false, ...c }, null, null);
+    const t1 = Date.now();
+    let g = null;
+    E.beginBudget(400000);
+    try { g = E.fullGrid(e2, E.mulberry32(11)); } catch(err){ if(err !== E.BUDGET) throw err; }
+    E.endBudget();
+    ok(!!g, name + ": still generates within budget");
+    console.log("  " + name.padEnd(20) + (g ? "ok" : "STARVED") + "  " + (Date.now() - t1) + "ms");
+  }
+}
+
 /* ---- 2. overlays are consistent with their solution ---- */
 console.log("\n[2] killer cages + thermometers match the solution");
 {
@@ -160,12 +191,24 @@ for(const [name, c] of [["diagonal", { diagonal: true }], ["anti-knight", { anti
 console.log("\n[5] soundness: no technique ever eliminates the true digit");
 {
   let checked = 0;
-  for(let trial = 0; trial < 6; trial++){
-    const cons = { diagonal: trial % 2 === 1, antiKnight: false, antiKing: false, killer: false, thermo: false };
+  // cage arithmetic and thermometer bounds are eliminations too, so they get
+  // the same scrutiny as the classic techniques
+  const SHAPES = [
+    { diagonal: false }, { diagonal: true }, { antiKnight: true }, { antiKing: true },
+    { killer: true }, { thermo: true }, { killer: true, thermo: true },
+    { diagonal: true, killer: true }, { antiKnight: true, thermo: true }
+  ];
+  for(let trial = 0; trial < SHAPES.length * 2; trial++){
+    const cons = { diagonal: false, antiKnight: false, antiKing: false, killer: false, thermo: false,
+                   ...SHAPES[trial % SHAPES.length] };
     const rnd = E.mulberry32(4000 + trial);
-    const eng = E.makeEngine(cons, null, null);
-    const sol = E.fullGrid(eng, rnd);
-    const givens = E.dig(sol, eng, rnd, 17);
+    const plain = E.makeEngine(cons, null, null);
+    const sol = E.fullGrid(plain, rnd);
+    if(!sol) continue;
+    const cages = cons.killer ? E.makeCages(sol, rnd, 5) : null;
+    const thermos = cons.thermo ? E.makeThermos(sol, rnd, 6) : null;
+    const eng = E.makeEngine(cons, cages, thermos);
+    const givens = cons.killer ? E.digFromEmpty(sol, eng, rnd, 8) : E.dig(sol, eng, rnd, 17);
     const init = E.initCand(givens, eng);
     if(!init) { fails++; console.log("  FAIL init contradiction"); continue; }
     const { cand, seen } = init;

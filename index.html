@@ -580,7 +580,24 @@ function reduceAll(cand, E, seen){
 /* ============================================================================
    3. BRUTE SOLVER — counts solutions (capped), or finds one at random
    ========================================================================== */
+/* The solution search is exhaustive, so an over-constrained rule set can run
+   effectively for ever — and it runs on the main thread, which locks the page.
+   Every generator attempt gets a node budget; blowing it abandons that attempt
+   instead of freezing the tab. */
+const BUDGET = Symbol("search budget exhausted");
+let nodeCount = 0, nodeCap = Infinity, budgetUntil = Infinity;
+function beginBudget(cap, ms){
+  nodeCount = 0;
+  nodeCap = cap;
+  // A node cap alone does not bound how long the tab is blocked, since node
+  // cost varies with the rule set. The wall clock is what the player feels.
+  budgetUntil = ms ? performance.now() + ms : Infinity;
+}
+function endBudget(){ nodeCap = Infinity; budgetUntil = Infinity; }
+
 function search(cand, E, seen, limit, rnd, out){
+  if(++nodeCount > nodeCap) throw BUDGET;
+  if((nodeCount & 2047) === 0 && performance.now() > budgetUntil) throw BUDGET;
   if(reduceAll(cand, E, seen) < 0) return 0;
   let best = -1, bestN = 10;
   for(let i = 0; i < CELLS; i++){
@@ -1184,51 +1201,62 @@ async function generate(cons, targetBand, seedStr, onProgress){
   let maxCage = [3, 3, 4, 5, 5][targetBand];
   let nThermo = [9, 8, 6, 5, 4][targetBand];
 
+  let starved = 0, attempts = 0;
   for(let attempt = 0; attempt < 60; attempt++){
     if(attempt && performance.now() > deadline) break;
     onProgress(attempt);
     await frame();
+    attempts++;
     const rnd = mulberry32((base + attempt * 0x9E3779B1) >>> 0);
     const step = attempt < 8 ? 3 : attempt < 20 ? 2 : 1;
 
-    const plainE = makeEngine(cons, null, null);
-    const sol = fullGrid(plainE, rnd);
-    if(!sol) continue;
-
-    const cages = cons.killer ? makeCages(sol, rnd, maxCage) : null;
-    const thermos = cons.thermo ? makeThermos(sol, rnd, nThermo) : null;
-    const E = makeEngine(cons, cages, thermos);
-
-    let givens;
+    beginBudget(800000, 2500);
     try{
-      givens = fromEmpty ? digFromEmpty(sol, E, rnd, floor) : dig(sol, E, rnd, floor);
-    }catch(e){ continue; }
+      const plainE = makeEngine(cons, null, null);
+      const sol = fullGrid(plainE, rnd);
+      if(!sol) continue;
 
-    const g = grade(givens, E);
-    if(!g.solved){                       // beyond our technique set: ease off
-      floor = Math.min(maxF, floor + step);
-      continue;
+      const cages = cons.killer ? makeCages(sol, rnd, maxCage) : null;
+      const thermos = cons.thermo ? makeThermos(sol, rnd, nThermo) : null;
+      const E = makeEngine(cons, cages, thermos);
+
+      const givens = fromEmpty ? digFromEmpty(sol, E, rnd, floor) : dig(sol, E, rnd, floor);
+
+      const g = grade(givens, E);
+      if(!g.solved){                       // beyond our technique set: ease off
+        floor = Math.min(maxF, floor + step);
+        continue;
+      }
+      const puzzle = { givens, solution: sol, cages: cages || [], thermos: thermos || [], cons, E, grade: g, seed: seedStr, attempt };
+      if(g.band === targetBand) return { puzzle, starved, attempts };
+      if(!best || Math.abs(g.band - targetBand) < Math.abs(best.grade.band - targetBand)) best = puzzle;
+      const tooEasy = g.band < targetBand;
+      const nextFloor = Math.min(maxF, Math.max(minF, floor + (tooEasy ? -step : step)));
+      // Uniqueness sets a hard limit on how few clues a board can carry, so the
+      // clue floor can saturate with the board still off target. When it does,
+      // loosen or tighten the overlay itself instead.
+      if(nextFloor === floor && overlay){
+        if(tooEasy){ nThermo = Math.max(3, nThermo - 1); maxCage = Math.min(5, maxCage + 1); }
+        else       { nThermo = Math.min(10, nThermo + 1); maxCage = Math.max(2, maxCage - 1); }
+      }
+      floor = nextFloor;
+    }catch(err){
+      if(err !== BUDGET) throw err;
+      starved++;                           // rules too tight to find a grid
+      if(starved >= 2 && !best) break;     // two dead ends is enough to call it
+    }finally{
+      endBudget();
     }
-    const puzzle = { givens, solution: sol, cages: cages || [], thermos: thermos || [], cons, E, grade: g, seed: seedStr, attempt };
-    if(g.band === targetBand) return puzzle;
-    if(!best || Math.abs(g.band - targetBand) < Math.abs(best.grade.band - targetBand)) best = puzzle;
-    const tooEasy = g.band < targetBand;
-    const nextFloor = Math.min(maxF, Math.max(minF, floor + (tooEasy ? -step : step)));
-    // Uniqueness sets a hard limit on how few clues a board can carry, so the
-    // clue floor can saturate with the board still off target. When it does,
-    // loosen or tighten the overlay itself instead.
-    if(nextFloor === floor && overlay){
-      if(tooEasy){ nThermo = Math.max(3, nThermo - 1); maxCage = Math.min(5, maxCage + 1); }
-      else       { nThermo = Math.min(10, nThermo + 1); maxCage = Math.max(2, maxCage - 1); }
-    }
-    floor = nextFloor;
   }
-  return best;
+  return { puzzle: best, starved, attempts };
 }
 
 /* ============================================================================
    6. UI
    ========================================================================== */
+/* Rules that restrict which cells may share a digit. Stacking all three makes
+   the grid unsatisfiable in practice, so the UI allows at most two. */
+const CELL_RULES = ["diagonal", "antiKnight", "antiKing"];
 const CONSTRAINTS = [
   { key: "diagonal",   name: "Diagonal (X)",   desc: "Both long diagonals hold 1–9" },
   { key: "antiKnight", name: "Anti‑knight",    desc: "A chess knight's move apart? Not the same digit" },
@@ -1282,8 +1310,18 @@ for(const c of CONSTRAINTS){
   l.className = "sw";
   l.innerHTML = '<input type="checkbox" data-k="' + c.key + '"><span><span class="nm">' + c.name + '</span><span class="ds">' + c.desc + '</span></span>';
   l.querySelector("input").addEventListener("change", e => {
+    // All three cell rules at once leaves the search with essentially nothing
+    // to find: it ran past three million nodes without a grid. Refuse the third
+    // rather than let the generator grind.
+    if(e.target.checked && CELL_RULES.includes(c.key) &&
+       CELL_RULES.filter(k => S.cons[k]).length >= 2){
+      e.target.checked = false;
+      setStatus("Diagonal, anti-knight and anti-king together are too tight to build a board — pick at most two of them.", "err");
+      return;
+    }
     S.cons[c.key] = e.target.checked;
     $("cName").textContent = consName();
+    setStatus(consName() === "Classic" ? "Classic rules. Deal a board." : consName() + ". Deal a board.", "");
   });
   swEl.appendChild(l);
 }
@@ -1643,14 +1681,26 @@ async function deal(){
   $("seed").value = seed;
   const cons = { ...S.cons };
 
-  const P = await generate(cons, S.target, seed, a => {
-    if(a > 3) veil.innerHTML = '<span class="dots">Attempt ' + (a + 1) + " — grading</span>";
-  });
+  let P = null, starved = 0, attempts = 0;
+  try{
+    ({ puzzle: P, starved, attempts } = await generate(cons, S.target, seed, a => {
+      if(a > 3) veil.innerHTML = '<span class="dots">Attempt ' + (a + 1) + " — grading</span>";
+    }));
+  }catch(err){
+    console.error(err);
+    btn.disabled = false; S.busy = false;
+    veil.className = "veil";
+    setStatus("The generator hit an unexpected error. Deal again, or drop a constraint.", "err");
+    return;
+  }
 
   btn.disabled = false; S.busy = false;
   if(!P){
     veil.className = "veil";
-    setStatus("That combination of rules wouldn't settle. Try a different seed or drop a constraint.", "err");
+    // every attempt ran out of search budget: the rules cannot be satisfied
+    setStatus(starved >= Math.max(1, attempts)
+      ? "Those rules are too tight — there is no grid that satisfies all of them. Turn one off and deal again."
+      : "That combination wouldn't settle on a board. Try another seed, or drop a constraint.", "err");
     return;
   }
   veil.className = "veil";

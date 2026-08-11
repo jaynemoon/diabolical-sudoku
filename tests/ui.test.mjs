@@ -161,6 +161,23 @@ ok(diffLabels.join(",") === "Tricky,Hard,Diabolical,Nightmare", "dial reads " + 
 /* each button must still map to its true band index, not its position */
 ok(byId.get("diffs").childNodes.every((b, i) => +b.dataset.band === i + 1), "buttons carry their real band index");
 
+/* the third cell rule is refused, so the generator is never asked to grind */
+{
+  const sw = byId.get("switches").childNodes.map(l => l.querySelector("input"));
+  const tick = (i, on) => { sw[i].checked = on; sw[i].dispatch("change", { target: sw[i] }); };
+  S.cons.diagonal = S.cons.antiKnight = S.cons.antiKing = false;
+  tick(0, true); tick(1, true);
+  ok(S.cons.diagonal && S.cons.antiKnight, "two cell rules combine freely");
+  tick(2, true);
+  ok(S.cons.antiKing === false, "the third cell rule is refused");
+  ok(sw[2].checked === false, "and its box is unticked again");
+  ok(/at most two/.test(byId.get("status").textContent), "with an explanation: “" + byId.get("status").textContent + "”");
+  tick(3, true);
+  ok(S.cons.killer === true, "killer cages are unaffected by the cap");
+  tick(0, false); tick(1, false); tick(3, false);
+  ok(!S.cons.diagonal && !S.cons.antiKnight && !S.cons.killer, "rules clear again");
+}
+
 /* Space toggles notes mode, and so does N */
 const wasNotes = S.notemode;
 const spaceEv = pressKey(" ");
@@ -267,6 +284,74 @@ sandbox.__undo();
 sandbox.__hint();
 const st = byId.get("status").textContent;
 ok(/r\dc\d/.test(st), "hint names a cell: “" + st + "”");
+
+/* Input fuzz: thousands of random gestures must never throw and never corrupt
+   state. A game is driven by whatever the player does in whatever order, so
+   the invariants matter more than any single scripted sequence. */
+console.log("\n[UI] input fuzz — 4000 random gestures hold every invariant");
+{
+  let rng = 20260804;
+  const rnd = () => (rng = (rng * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff;
+  const pick = a => a[(rnd() * a.length) | 0];
+
+  const grid = byId.get("grid"), pad = byId.get("pad");
+  const givensCopy = Int8Array.from(P.givens);
+  let threw = null, brokeGiven = null, badVal = null, badNote = null, badSel = null;
+
+  const actions = [
+    () => pressKey(String(1 + ((rnd() * 9) | 0))),
+    () => pressKey(String(1 + ((rnd() * 9) | 0)), { shiftKey: true }),
+    () => pressKey(pick(["ArrowLeft","ArrowRight","ArrowUp","ArrowDown"])),
+    () => pressKey(pick(["Backspace","Delete","0"])),
+    () => pressKey(" "),
+    () => pressKey("n"),
+    () => pressKey("u"),
+    () => pressKey("c"),
+    () => grid.dispatch("pointerdown", { target: grid.childNodes[(rnd()*81)|0], button: 0 }),
+    () => grid.dispatch("contextmenu", { target: grid.childNodes[(rnd()*81)|0], button: 2, preventDefault(){} }),
+    () => pad.dispatch("contextmenu",  { target: pad.childNodes[(rnd()*9)|0],  button: 2, preventDefault(){} }),
+    () => byId.get("btnNotes").dispatch("click", {}),
+    () => byId.get("btnAuto").dispatch("click", {}),
+    () => byId.get("btnUndo").dispatch("click", {})
+  ];
+
+  for(let n = 0; n < 4000 && !threw; n++){
+    try { pick(actions)(); }
+    catch(err){ threw = "gesture " + n + ": " + (err && err.message ? err.message : String(err)); break; }
+
+    for(let i = 0; i < 81; i++){
+      if(givensCopy[i] && S.grid[i] !== givensCopy[i]) brokeGiven ??= "cell " + i + " at gesture " + n;
+      const v = S.grid[i];
+      if(!(v >= 0 && v <= 9) || !Number.isInteger(v)) badVal ??= "cell " + i + " = " + v;
+      if(!(S.notes[i] >= 0 && S.notes[i] <= 511)) badNote ??= "cell " + i + " = " + S.notes[i];
+    }
+    if(!(S.sel >= 0 && S.sel < 81)) badSel ??= "sel = " + S.sel + " at gesture " + n;
+    if(brokeGiven || badVal || badNote || badSel) break;
+  }
+
+  ok(!threw, "no gesture threw: " + (threw || "none"));
+  ok(!brokeGiven, "a given was never overwritten: " + (brokeGiven || "held"));
+  ok(!badVal, "every cell stayed a digit 0–9: " + (badVal || "held"));
+  ok(!badNote, "every pencil mask stayed a valid 9-bit set: " + (badNote || "held"));
+  ok(!badSel, "the cursor stayed on the board: " + (badSel || "held"));
+  ok(S.hist.length <= 500, "undo history stayed bounded at " + S.hist.length);
+
+  /* undoing everything must return the board to its dealt state */
+  let guard = 0;
+  while(S.hist.length && guard++ < 2000) sandbox.__undo();
+  let restored = true;
+  for(let i = 0; i < 81; i++) if(S.grid[i] !== givensCopy[i]) restored = false;
+  ok(restored, "undoing every move restores the dealt board exactly");
+
+  /* leave a clean slate for the win test */
+  S.notemode = false;
+  byId.get("btnNotes").classList.remove("on");
+  S.autoPencil = false;
+  S.grid = Int8Array.from(P.givens);
+  S.notes = new Uint16Array(81);
+  S.hist = []; S.bad.clear(); S.won = false;
+  sandbox.__paint();
+}
 
 /* filling the solution wins */
 for(let i = 0; i < 81; i++){ if(!P.givens[i]){ S.sel = i; sandbox.__enter(P.solution[i]); } }

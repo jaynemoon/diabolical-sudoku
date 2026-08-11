@@ -15,7 +15,10 @@ const EXPORTS = [
   "countSolutions", "grade", "initCand", "oneStep", "TECH", "BANDS",
   "bandOf", "bandFor", "scoreOf", "fullGrid", "makeCages", "makeThermos",
   "dig", "digFromEmpty", "pruneThermo", "pruneCages", "rowOf", "colOf",
-  "CELLS", "FLOOR_PLAIN", "FLOOR_OVERLAY"
+  "CELLS", "FLOOR_PLAIN", "FLOOR_OVERLAY",
+  "BUDGET", "beginBudget", "endBudget",
+  // the real generator, so tests exercise it rather than a copy of its logic
+  "generate"
 ];
 
 export function readPageScript(){

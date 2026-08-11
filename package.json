@@ -6,6 +6,8 @@
   "description": "Variant sudoku with stackable constraints and a technique-grading solver",
   "scripts": {
     "test": "node tests/engine.test.mjs && node tests/ui.test.mjs",
+    "test:all": "npm test && node tests/robustness.test.mjs",
+    "test:robustness": "node tests/robustness.test.mjs",
     "calibrate": "node tests/calibrate.mjs"
   }
 }
