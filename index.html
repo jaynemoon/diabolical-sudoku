@@ -221,7 +221,9 @@ body.notemode .pad button{color:var(--pencil);font-size:clamp(13px,2.4vw,17px)}
 .diffs button{
   border:none;border-right:1px solid var(--hair);background:var(--panel-2);color:var(--ink-soft);
   font-family:var(--mono);font-size:9px;letter-spacing:.06em;text-transform:uppercase;
-  padding:10px 2px;cursor:pointer;transition:all .1s;
+  padding:9px 4px;cursor:pointer;transition:all .1s;
+  /* the longest label runs to two lines; the row levels itself off the tallest */
+  display:flex;align-items:center;justify-content:center;text-align:center;line-height:1.3;
 }
 .diffs button:last-child{border-right:none}
 .diffs button:hover{color:var(--ink)}
@@ -653,14 +655,16 @@ const TECH = {
    effort is the signal that stays monotone across every variant; the peak
    rides on top of it so a board that genuinely needs a chain still ranks up. */
 const scoreOf = (peak, effort) => Math.round(effort + peak * 2.2);
-/* "steady" stays in the scale so an easy board is still reported honestly,
-   but it is not offered as a target — the point of this game is harder boards. */
+/* The scale keeps its full range so an easy board is still reported honestly,
+   but only the top three are offered as targets — the point of this game is
+   hard boards. The bands themselves are untouched: "Insanely Diabolical" is the
+   old top band, same thresholds and same generator settings. */
 const BANDS = [
   { key: "steady",     label: "Steady",     max: 55,  selectable: false },
-  { key: "tricky",     label: "Tricky",     max: 95  },
+  { key: "tricky",     label: "Tricky",     max: 95,  selectable: false },
   { key: "hard",       label: "Hard",       max: 165 },
   { key: "diabolical", label: "Diabolical", max: 300 },
-  { key: "nightmare",  label: "Nightmare",  max: Infinity }
+  { key: "insane",     label: "Insanely Diabolical", max: Infinity }
 ];
 const bandOf = score => BANDS.findIndex(b => score <= b.max);
 /* A short board that still needs a chain is not a gentle board. The score sets

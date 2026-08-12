@@ -90,7 +90,7 @@ console.log("\n[2] killer cages + thermometers match the solution");
 
 /* ---- 3. the human solver never contradicts the true solution ---- */
 console.log("\n[3] generated boards: unique, gradeable, solver agrees with truth");
-const targets = ["steady", "tricky", "hard", "diabolical", "nightmare"];
+const targets = ["steady", "tricky", "hard", "diabolical", "insane"];
 const results = {};
 // mirrors generate() in the page
 async function tryGen(cons, target, seedBase, budgetMs){

@@ -124,7 +124,7 @@ const ok = (c, m) => { if(!c){ console.log("  FAIL " + m); fails++; } else conso
 
 console.log("\n[UI] whole page script executes under a DOM shim");
 try{
-  vm.runInNewContext(script + "\n;globalThis.__S = S; globalThis.__deal = deal; globalThis.__enter = enter; globalThis.__hint = hint; globalThis.__check = check; globalThis.__paint = paint; globalThis.__undo = undo;", sandbox, { timeout: 120000 });
+  vm.runInNewContext(script + "\n;globalThis.__S = S; globalThis.__deal = deal; globalThis.__enter = enter; globalThis.__hint = hint; globalThis.__check = check; globalThis.__paint = paint; globalThis.__undo = undo; globalThis.__BANDS = BANDS;", sandbox, { timeout: 120000 });
   console.log("  ok   script parsed and ran with no exception");
 }catch(e){
   console.log("  FAIL script threw: " + e.message + "\n" + (e.stack || "").split("\n").slice(0, 4).join("\n"));
@@ -153,13 +153,27 @@ ok(byId.get("grid").childNodes.length === 81, "81 cells built");
 ok(byId.get("pad").childNodes.length === 9, "9 pad buttons built");
 ok(byId.get("switches").childNodes.length === 5, "5 constraint switches built");
 
-/* the difficulty dial offers four targets — "Steady" is graded but not offered */
+/* The dial offers only the top three. Steady and Tricky still exist in the
+   scale so an easy board is reported honestly, but neither is a target. */
 const diffLabels = byId.get("diffs").childNodes.map(b => b.textContent);
-ok(diffLabels.length === 4, "4 difficulty buttons built, got " + diffLabels.length);
-ok(!diffLabels.some(l => /steady/i.test(l)), "Steady is not offered: " + diffLabels.join(" / "));
-ok(diffLabels.join(",") === "Tricky,Hard,Diabolical,Nightmare", "dial reads " + diffLabels.join(" → "));
-/* each button must still map to its true band index, not its position */
-ok(byId.get("diffs").childNodes.every((b, i) => +b.dataset.band === i + 1), "buttons carry their real band index");
+ok(diffLabels.length === 3, "3 difficulty buttons built, got " + diffLabels.length);
+ok(!diffLabels.some(l => /steady|tricky/i.test(l)), "the easy bands are not offered: " + diffLabels.join(" / "));
+ok(diffLabels.join(",") === "Hard,Diabolical,Insanely Diabolical", "dial reads " + diffLabels.join(" → "));
+/* each button must map to its true band index, not its position: dropping a
+   band from the front would otherwise shift every difficulty by a rung */
+ok(byId.get("diffs").childNodes.every((b, i) => +b.dataset.band === i + 2), "buttons carry their real band index");
+/* renaming the top band must not have moved any threshold */
+{
+  const B = sandbox.__BANDS;
+  ok(B.length === 5, "the scale still has 5 bands, got " + B.length);
+  ok(B.map(b => b.max).join(",") === "55,95,165,300,Infinity",
+     "band thresholds unchanged: " + B.map(b => b.max).join(","));
+  ok(B[4].key === "insane" && B[4].label === "Insanely Diabolical",
+     "the top band is Insanely Diabolical");
+  ok(B[4].max === Infinity, "and it keeps the old top-band ceiling");
+  ok(B.filter(b => b.selectable === false).map(b => b.key).join(",") === "steady,tricky",
+     "exactly Steady and Tricky are withheld");
+}
 
 /* the third cell rule is refused, so the generator is never asked to grind */
 {
