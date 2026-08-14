@@ -101,12 +101,35 @@ h1{
   transform-origin:left bottom;
   text-wrap:balance;
 }
-.themebtn{
-  font-family:var(--mono);font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;
-  background:none;border:1px solid var(--hair);color:var(--ink-soft);
-  padding:8px 12px;cursor:pointer;border-radius:2px;
+.headright{display:flex;align-items:center;gap:14px}
+.bigclock{
+  font-family:var(--mono);font-variant-numeric:tabular-nums;
+  font-size:clamp(30px,4.4vw,46px);line-height:.9;letter-spacing:-.03em;
+  color:var(--ink);padding:0 0 2px;
+  font-feature-settings:"tnum" 1;
 }
-.themebtn:hover{border-color:var(--rule);color:var(--ink)}
+.bigclock.running{color:var(--pen)}
+.bigclock.won{color:var(--jade)}
+.dotsbtn{
+  width:38px;height:38px;flex:none;display:flex;align-items:center;justify-content:center;
+  background:none;border:1px solid transparent;border-radius:2px;cursor:pointer;
+  color:var(--ink-soft);transition:color .1s,border-color .1s,background-color .1s;padding:0;
+}
+.dotsbtn:hover{color:var(--ink);border-color:var(--hair)}
+.dotsbtn[aria-expanded="true"]{color:var(--panel-2);background:var(--rule);border-color:var(--rule)}
+.dotsbtn svg{display:block}
+.menurow{
+  display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%;
+  background:var(--panel-2);border:1px solid var(--hair);border-radius:2px;
+  padding:10px 11px;cursor:pointer;color:var(--ink);
+  font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;
+}
+.menurow:hover{border-color:var(--rule)}
+.menurow .mk{color:var(--ink-faint);font-size:9px;letter-spacing:.06em}
+.popsub{
+  font-family:var(--mono);font-size:9px;letter-spacing:.18em;text-transform:uppercase;
+  color:var(--ink-faint);margin:15px 0 9px;padding-top:12px;border-top:1px solid var(--hair);
+}
 .rules{margin:26px 0 30px;border-top:2px solid var(--rule);border-bottom:1px solid var(--hair);height:4px}
 
 /* ---- stage ---- */
@@ -185,7 +208,7 @@ h1{
 .pad button.spent .left{opacity:0}
 body.notemode .pad button{color:var(--pencil);font-size:clamp(13px,2.4vw,17px)}
 
-.tools{display:grid;grid-template-columns:repeat(5,1fr);gap:6px}
+.tools{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
 .tools button{
   border:1px solid var(--hair);background:var(--panel-2);color:var(--ink-soft);
   font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;
@@ -208,16 +231,25 @@ body.notemode .pad button{color:var(--pencil);font-size:clamp(13px,2.4vw,17px)}
 }
 .card h2 b{font-weight:400;color:var(--ink-soft)}
 
-/* constraint switches */
-.switches{display:flex;flex-direction:column;gap:1px;background:var(--hair);border:1px solid var(--hair);border-radius:2px;overflow:hidden}
-.sw{display:flex;gap:10px;align-items:flex-start;padding:9px 11px;background:var(--panel-2);cursor:pointer}
-.sw:hover{background:var(--paper)}
-.sw input{margin:2px 0 0;accent-color:var(--pen);width:14px;height:14px;flex:none;cursor:pointer}
-.sw .nm{font-size:12.5px;font-weight:600;letter-spacing:-.005em;display:block}
-.sw .ds{font-family:var(--mono);font-size:9.5px;color:var(--ink-faint);line-height:1.55;display:block;margin-top:2px}
+/* constraint chips — inline, same language as the difficulty control */
+.fieldlabel{
+  font-family:var(--mono);font-size:9px;letter-spacing:.16em;text-transform:uppercase;
+  color:var(--ink-faint);margin:0 0 6px;
+}
+.chips{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:14px}
+.chips button{
+  border:1px solid var(--hair);background:var(--panel-2);color:var(--ink-soft);
+  font-family:var(--mono);font-size:9px;letter-spacing:.06em;text-transform:uppercase;
+  padding:7px 9px;border-radius:2px;cursor:pointer;transition:all .1s;
+}
+.chips button:hover{border-color:var(--rule);color:var(--ink)}
+.chips button.on{background:var(--pen);border-color:var(--pen);color:#fff}
+:root[data-theme="dark"] .chips button.on{color:#0C1015}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .chips button.on{color:#0C1015}}
+.chips button.blocked{opacity:.4;cursor:not-allowed}
 
 /* difficulty */
-.diffs{display:grid;grid-auto-flow:column;grid-auto-columns:1fr;gap:0;border:1px solid var(--hair);border-radius:2px;overflow:hidden;margin-bottom:12px}
+.diffs{display:grid;grid-auto-flow:column;grid-auto-columns:1fr;gap:0;border:1px solid var(--hair);border-radius:2px;overflow:hidden;margin-bottom:14px}
 .diffs button{
   border:none;border-right:1px solid var(--hair);background:var(--panel-2);color:var(--ink-soft);
   font-family:var(--mono);font-size:9px;letter-spacing:.06em;text-transform:uppercase;
@@ -250,10 +282,27 @@ body.notemode .pad button{color:var(--pencil);font-size:clamp(13px,2.4vw,17px)}
 .deal:disabled{opacity:.45;cursor:progress}
 
 /* readout */
-.meta{display:grid;grid-template-columns:auto 1fr;gap:5px 14px;font-family:var(--mono);font-size:11px;margin-bottom:14px}
-.meta dt{color:var(--ink-faint);letter-spacing:.08em;text-transform:uppercase;font-size:9.5px;padding-top:2px}
-.meta dd{margin:0;color:var(--ink);font-variant-numeric:tabular-nums}
-.band{font-weight:700;letter-spacing:.04em;text-transform:uppercase}
+.verdict{
+  font-family:var(--mono);font-size:13px;font-weight:700;letter-spacing:.1em;
+  text-transform:uppercase;text-align:center;padding:11px 8px;border-radius:2px;
+  background:var(--panel-2);border:1px solid var(--hair);color:var(--ink-faint);
+  margin-bottom:8px;line-height:1.25;
+}
+.verdict[data-band]{border-color:currentColor}
+.tiles{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:8px}
+.tile{
+  background:var(--panel-2);border:1px solid var(--hair);border-radius:2px;
+  padding:8px 6px;display:flex;flex-direction:column;gap:3px;align-items:center;
+}
+.tile .k{font-family:var(--mono);font-size:8.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-faint)}
+.tile .v{font-family:var(--mono);font-size:15px;font-variant-numeric:tabular-nums;color:var(--ink)}
+.peakline{
+  display:flex;justify-content:space-between;align-items:baseline;gap:10px;
+  background:var(--panel-2);border:1px solid var(--hair);border-radius:2px;
+  padding:8px 10px;margin-bottom:14px;font-family:var(--mono);
+}
+.peakline .k{font-size:8.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-faint)}
+.peakline .v{font-size:11px;color:var(--amber);font-weight:700;text-align:right}
 
 .log{display:flex;flex-direction:column;gap:0;border-top:1px solid var(--hair)}
 .log .row{
@@ -272,6 +321,21 @@ body.notemode .pad button{color:var(--pencil);font-size:clamp(13px,2.4vw,17px)}
 .status.win{color:var(--jade);font-weight:700;letter-spacing:.06em;text-transform:uppercase}
 .status.err{color:var(--rose)}
 
+.popwrap{position:relative}
+.pop{
+  position:absolute;top:calc(100% + 8px);right:0;z-index:40;width:min(330px,78vw);
+  background:var(--panel);border:1px solid var(--rule);border-radius:3px;
+  box-shadow:var(--shadow);padding:14px;
+}
+.pop[hidden]{display:none}
+@media (prefers-reduced-motion:no-preference){
+  .pop{animation:popin .13s ease-out}
+}
+@keyframes popin{from{opacity:0;transform:translateY(-5px)}to{opacity:1;transform:none}}
+.pophead{
+  font-family:var(--mono);font-size:9px;letter-spacing:.18em;text-transform:uppercase;
+  color:var(--ink-faint);margin-bottom:11px;padding-bottom:8px;border-bottom:1px solid var(--hair);
+}
 .legend{display:flex;flex-direction:column;gap:7px;font-family:var(--mono);font-size:10px;color:var(--ink-soft);line-height:1.5}
 .legend div{display:grid;grid-template-columns:74px 1fr;gap:9px;align-items:start}
 .legend b{font-weight:700;color:var(--ink)}
@@ -298,7 +362,36 @@ body.notemode .pad button{color:var(--pencil);font-size:clamp(13px,2.4vw,17px)}
 
   <header class="masthead">
     <h1>DIABOLICAL<br>SUDOKU</h1>
-    <button class="themebtn" id="themeBtn" type="button">Invert</button>
+    <div class="headright">
+      <div class="bigclock" id="clock" aria-live="off"><span class="t" id="clockT">0:00</span></div>
+      <div class="popwrap">
+        <button class="dotsbtn" id="menuBtn" type="button" aria-expanded="false" aria-controls="menuPop" aria-label="Settings">
+          <svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+            <circle cx="12" cy="4.4" r="2.2" fill="currentColor"/>
+            <circle cx="12" cy="12"  r="2.2" fill="currentColor"/>
+            <circle cx="12" cy="19.6" r="2.2" fill="currentColor"/>
+          </svg>
+        </button>
+        <div class="pop" id="menuPop" role="dialog" aria-label="Settings" hidden>
+          <div class="pophead">Settings</div>
+          <button class="menurow" type="button" id="themeBtn">
+            <span>Invert theme</span><span class="mk" id="themeState">dark</span>
+          </button>
+          <div class="popsub">Shortcuts</div>
+          <div class="legend">
+            <div><kbd>1–9</kbd><span>write a digit</span></div>
+            <div><kbd>⇧+1–9</kbd><span>toggle a pencil mark</span></div>
+            <div><kbd>Right‑click</kbd><span>a pad digit to switch to notes and pencil it in</span></div>
+            <div><kbd>Click</kbd><span>a cell to select it and go back to writing digits</span></div>
+            <div><kbd>Space</kbd><span>notes mode on / off (or <b>N</b>)</span></div>
+            <div><kbd>← ↑ ↓ →</kbd><span>move the cursor</span></div>
+            <div><kbd>⌫</kbd><span>clear the cell</span></div>
+            <div><kbd>U</kbd><span>undo</span></div>
+            <div><kbd>H</kbd><span>hint — names the technique</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
   </header>
 
   <div class="rules"></div>
@@ -318,9 +411,7 @@ body.notemode .pad button{color:var(--pencil);font-size:clamp(13px,2.4vw,17px)}
         <div class="pad" id="pad"></div>
         <div class="tools">
           <button type="button" id="btnNotes" title="Notes mode — Space">Notes</button>
-          <button type="button" id="btnAuto">Auto‑pencil</button>
           <button type="button" id="btnUndo">Undo</button>
-          <button type="button" id="btnCheck">Check</button>
           <button type="button" id="btnHint">Hint</button>
         </div>
       </div>
@@ -330,12 +421,10 @@ body.notemode .pad button{color:var(--pencil);font-size:clamp(13px,2.4vw,17px)}
     <aside class="rail">
 
       <section class="card">
-        <h2>Constraints <b id="cName">Classic</b></h2>
-        <div class="switches" id="switches"></div>
-      </section>
-
-      <section class="card">
-        <h2>Generator</h2>
+        <h2>Generator <b id="cName">Classic</b></h2>
+        <div class="fieldlabel">Rules</div>
+        <div class="chips" id="switches"></div>
+        <div class="fieldlabel">Difficulty</div>
         <div class="diffs" id="diffs"></div>
         <div class="seedrow">
           <input id="seed" spellcheck="false" aria-label="Seed" placeholder="seed">
@@ -345,30 +434,16 @@ body.notemode .pad button{color:var(--pencil);font-size:clamp(13px,2.4vw,17px)}
       </section>
 
       <section class="card">
-        <h2>Grading report <b id="clock">0:00</b></h2>
-        <dl class="meta">
-          <dt>Verdict</dt><dd class="band" id="mBand">—</dd>
-          <dt>Clues</dt><dd id="mClues">—</dd>
-          <dt>Hardest</dt><dd id="mPeak">—</dd>
-          <dt>Score</dt><dd id="mEffort">—</dd>
-        </dl>
-        <div class="log" id="log"></div>
-        <p class="status" id="status">Pick your constraints and deal a board.</p>
-      </section>
-
-      <section class="card">
-        <h2>Controls</h2>
-        <div class="legend">
-          <div><kbd>1–9</kbd><span>write a digit</span></div>
-          <div><kbd>⇧+1–9</kbd><span>toggle a pencil mark</span></div>
-          <div><kbd>Right‑click</kbd><span>a pad digit to switch to notes and pencil it in</span></div>
-          <div><kbd>Click</kbd><span>a cell to select it and go back to writing digits</span></div>
-          <div><kbd>Space</kbd><span>notes mode on / off (or <b>N</b>)</span></div>
-          <div><kbd>← ↑ ↓ →</kbd><span>move the cursor</span></div>
-          <div><kbd>⌫</kbd><span>clear the cell</span></div>
-          <div><kbd>U</kbd><span>undo</span></div>
-          <div><kbd>H</kbd><span>hint — names the technique</span></div>
+        <h2>Stats</h2>
+        <div class="verdict" id="mBand">—</div>
+        <div class="tiles">
+          <div class="tile"><span class="k">Clues</span><span class="v" id="mClues">—</span></div>
+          <div class="tile"><span class="k">Score</span><span class="v" id="mEffort">—</span></div>
+          <div class="tile"><span class="k">Steps</span><span class="v" id="mSteps">—</span></div>
         </div>
+        <div class="peakline"><span class="k">Hardest step</span><span class="v" id="mPeak">—</span></div>
+        <div class="log" id="log"></div>
+        <p class="status" id="status">Pick your rules and deal a board.</p>
       </section>
 
     </aside>
@@ -662,7 +737,7 @@ const scoreOf = (peak, effort) => Math.round(effort + peak * 2.2);
 const BANDS = [
   { key: "steady",     label: "Steady",     max: 55,  selectable: false },
   { key: "tricky",     label: "Tricky",     max: 95,  selectable: false },
-  { key: "hard",       label: "Hard",       max: 165 },
+  { key: "hard",       label: "A Touch Diabolical", max: 165 },
   { key: "diabolical", label: "Diabolical", max: 300 },
   { key: "insane",     label: "Insanely Diabolical", max: Infinity }
 ];
@@ -1262,11 +1337,11 @@ async function generate(cons, targetBand, seedStr, onProgress){
    the grid unsatisfiable in practice, so the UI allows at most two. */
 const CELL_RULES = ["diagonal", "antiKnight", "antiKing"];
 const CONSTRAINTS = [
-  { key: "diagonal",   name: "Diagonal (X)",   desc: "Both long diagonals hold 1–9" },
-  { key: "antiKnight", name: "Anti‑knight",    desc: "A chess knight's move apart? Not the same digit" },
-  { key: "antiKing",   name: "Anti‑king",      desc: "No digit touches its twin, even at a corner" },
-  { key: "killer",     name: "Killer cages",   desc: "Dashed cages add to their sum, no repeats inside" },
-  { key: "thermo",     name: "Thermometers",   desc: "Digits climb from the bulb to the tip" }
+  { key: "diagonal",   name: "Diagonal (X)",   chip: "Diagonal",    desc: "Both long diagonals hold 1–9" },
+  { key: "antiKnight", name: "Anti‑knight",    chip: "Anti‑knight", desc: "A chess knight's move apart? Not the same digit" },
+  { key: "antiKing",   name: "Anti‑king",      chip: "Anti‑king",   desc: "No digit touches its twin, even at a corner" },
+  { key: "killer",     name: "Killer cages",   chip: "Killer",      desc: "Dashed cages add to their sum, no repeats inside" },
+  { key: "thermo",     name: "Thermometers",   chip: "Thermo",      desc: "Digits climb from the bulb to the tip" }
 ];
 
 const S = {
@@ -1278,7 +1353,7 @@ const S = {
   hist: [],
   sel: 40,
   notemode: false,
-  autoPencil: false,
+  activeTool: null,          // "hint" — lit until you touch the board
   bad: new Set(),
   t0: 0, elapsed: 0, running: false, won: false, busy: false
 };
@@ -1310,24 +1385,26 @@ for(let d = 1; d <= 9; d++){
 }
 const swEl = $("switches");
 for(const c of CONSTRAINTS){
-  const l = document.createElement("label");
-  l.className = "sw";
-  l.innerHTML = '<input type="checkbox" data-k="' + c.key + '"><span><span class="nm">' + c.name + '</span><span class="ds">' + c.desc + '</span></span>';
-  l.querySelector("input").addEventListener("change", e => {
-    // All three cell rules at once leaves the search with essentially nothing
-    // to find: it ran past three million nodes without a grid. Refuse the third
-    // rather than let the generator grind.
-    if(e.target.checked && CELL_RULES.includes(c.key) &&
+  const b = document.createElement("button");
+  b.type = "button";
+  b.dataset.k = c.key;
+  b.title = c.desc;
+  b.textContent = c.chip;
+  b.addEventListener("click", () => {
+    const want = !S.cons[c.key];
+    // All three cell rules at once leaves the search nothing to find, so the
+    // third is refused rather than letting the generator grind.
+    if(want && CELL_RULES.includes(c.key) &&
        CELL_RULES.filter(k => S.cons[k]).length >= 2){
-      e.target.checked = false;
       setStatus("Diagonal, anti-knight and anti-king together are too tight to build a board — pick at most two of them.", "err");
       return;
     }
-    S.cons[c.key] = e.target.checked;
+    S.cons[c.key] = want;
+    b.classList.toggle("on", want);
     $("cName").textContent = consName();
     setStatus(consName() === "Classic" ? "Classic rules. Deal a board." : consName() + ". Deal a board.", "");
   });
-  swEl.appendChild(l);
+  swEl.appendChild(b);
 }
 const diffEl = $("diffs");
 BANDS.forEach((b, i) => {
@@ -1340,7 +1417,7 @@ BANDS.forEach((b, i) => {
 });
 function paintDiffs(){ [...diffEl.children].forEach(b => b.classList.toggle("on", +b.dataset.band === S.target)); }
 function consName(){
-  const on = CONSTRAINTS.filter(c => S.cons[c.key]).map(c => c.name.replace(/\s*\(X\)/, ""));
+  const on = CONSTRAINTS.filter(c => S.cons[c.key]).map(c => c.chip);
   return on.length ? on.join(" + ") : "Classic";
 }
 
@@ -1400,24 +1477,9 @@ function drawStatic(){
   }
 }
 
-function autoCandidates(){
-  const E = S.puzzle.E;
-  const cand = new Int16Array(CELLS).fill(ALL);
-  for(let i = 0; i < CELLS; i++) if(S.grid[i]) cand[i] = bit(S.grid[i]);
-  for(let i = 0; i < CELLS; i++){
-    if(!S.grid[i]) continue;
-    const b = bit(S.grid[i]);
-    for(const p of E.peers[i]) if(!S.grid[p]) cand[p] &= ~b;
-  }
-  if(E.thermos.length) pruneThermo(cand, E.thermos);
-  if(E.cages.length) pruneCages(cand, E.cages);
-  return cand;
-}
-
 function paint(){
   const P = S.puzzle;
   const selVal = S.sel >= 0 ? S.grid[S.sel] : 0;
-  const auto = (S.autoPencil && P) ? autoCandidates() : null;
   const peers = (P && S.sel >= 0) ? new Set(P.E.peers[S.sel]) : null;
 
   for(let i = 0; i < CELLS; i++){
@@ -1432,7 +1494,7 @@ function paint(){
     const vs = c.firstChild;
     vs.textContent = v || "";
     const nd = c.lastChild;
-    const mask = v ? 0 : (auto ? (pc(auto[i]) > 1 ? auto[i] : 0) : S.notes[i]);
+    const mask = v ? 0 : S.notes[i];
     for(let d = 1; d <= 9; d++){
       const sp = nd.children[d - 1];
       const on = (mask >> (d - 1)) & 1;
@@ -1470,6 +1532,7 @@ function enter(d){
     vs.classList.remove("set"); void vs.offsetWidth; vs.classList.add("set");
   }
   S.bad.delete(i);
+  clearActiveTool();
   startClock();
   paint();
   checkWin();
@@ -1491,6 +1554,7 @@ function erase(){
   if(!P || S.sel < 0 || P.givens[S.sel]) return;
   push(S.sel);
   S.grid[S.sel] = 0; S.notes[S.sel] = 0; S.bad.delete(S.sel);
+  clearActiveTool();
   paint();
 }
 function undo(){
@@ -1508,6 +1572,7 @@ gridEl.addEventListener("pointerdown", e => {
   if(!c) return;
   S.sel = +c.dataset.i;
   if(e.button === 0 && S.notemode) toggleNotes();
+  clearActiveTool();
   paint();
 });
 /* The right button — also Control-click and a two-finger tap on a Mac trackpad
@@ -1526,11 +1591,13 @@ gridEl.addEventListener("contextmenu", e => {
   if(!c) return;
   e.preventDefault();          // keep the OS menu off the board
   S.sel = +c.dataset.i;
+  clearActiveTool();
   paint();
 });
 document.addEventListener("keydown", e => {
-  if(e.target.tagName === "INPUT") return;
   const k = e.key;
+  if(k === "Escape"){ setKeys(false); return; }
+  if(e.target.tagName === "INPUT") return;
   if(k >= "1" && k <= "9"){
     const d = +k;
     if(e.shiftKey){
@@ -1556,42 +1623,37 @@ document.addEventListener("keydown", e => {
   if(k === "n" || k === "N"){ toggleNotes(); return; }
   if(k === "u" || k === "U"){ undo(); return; }
   if(k === "h" || k === "H"){ hint(); return; }
-  if(k === "c" || k === "C"){ check(); return; }
 });
+
+/* Notes is a mode; Hint and Check are results that stay on screen — a marked
+   cell, a message — so their buttons stay lit until you touch the board again,
+   the same way notes mode clears on a click. Only one of the three can be
+   current at a time, so the row never shows two things selected at once.
+   Auto-pencil is deliberately outside this: it is a display setting, not a
+   mode, and turning it off because you asked for a hint would lose your
+   candidate display. */
+function setActiveTool(name){
+  S.activeTool = name;
+  $("btnHint").classList.toggle("on", name === "hint");
+}
+function clearActiveTool(){ if(S.activeTool) setActiveTool(null); }
 
 function toggleNotes(){
   S.notemode = !S.notemode;
   $("btnNotes").classList.toggle("on", S.notemode);
   document.body.classList.toggle("notemode", S.notemode);
+  if(S.notemode) setActiveTool(null);
 }
 $("btnNotes").addEventListener("click", toggleNotes);
-$("btnAuto").addEventListener("click", () => {
-  S.autoPencil = !S.autoPencil;
-  $("btnAuto").classList.toggle("on", S.autoPencil);
-  paint();
-});
 $("btnUndo").addEventListener("click", undo);
 
-function check(){
-  const P = S.puzzle;
-  if(!P) return;
-  S.bad.clear();
-  let filled = 0;
-  for(let i = 0; i < CELLS; i++){
-    if(!S.grid[i]) continue;
-    filled++;
-    if(S.grid[i] !== P.solution[i]) S.bad.add(i);
-  }
-  paint();
-  if(!filled){ setStatus("Nothing to check yet.", ""); return; }
-  if(S.bad.size) setStatus(S.bad.size + (S.bad.size === 1 ? " digit is" : " digits are") + " wrong — marked in red.", "err");
-  else setStatus("All " + filled + " entries are correct so far.", "");
-}
-$("btnCheck").addEventListener("click", check);
 
 function hint(){
   const P = S.puzzle;
   if(!P) return;
+  // a hint names a digit to write, so it drops you back into pen mode
+  if(S.notemode) toggleNotes();
+  setActiveTool("hint");
   // treat the player's correct entries as givens, then take one logical step
   const work = new Int8Array(CELLS);
   for(let i = 0; i < CELLS; i++) work[i] = (S.grid[i] && S.grid[i] === P.solution[i]) ? S.grid[i] : 0;
@@ -1622,15 +1684,21 @@ function checkWin(){
   if(!P) return;
   for(let i = 0; i < CELLS; i++) if(S.grid[i] !== P.solution[i]) return;
   S.won = true; S.running = false;
+  $("clock").className = "bigclock won";
   paint();
   setStatus("Solved — " + fmt(S.elapsed) + " on a " + BANDS[P.grade.band].label.toLowerCase() + " board.", "win");
 }
 
 /* ---------- clock ---------- */
 const fmt = ms => { const s = Math.floor(ms / 1000); return Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0"); };
-function startClock(){ if(!S.running && !S.won){ S.running = true; S.t0 = performance.now() - S.elapsed; } }
+function startClock(){
+  if(!S.running && !S.won){
+    S.running = true; S.t0 = performance.now() - S.elapsed;
+    $("clock").className = "bigclock running";
+  }
+}
 setInterval(() => {
-  if(S.running){ S.elapsed = performance.now() - S.t0; $("clock").textContent = fmt(S.elapsed); }
+  if(S.running){ S.elapsed = performance.now() - S.t0; $("clockT").textContent = fmt(S.elapsed); }
 }, 250);
 
 function setStatus(txt, cls){ const e = $("status"); e.textContent = txt; e.className = "status " + (cls || ""); }
@@ -1638,13 +1706,19 @@ function setStatus(txt, cls){ const e = $("status"); e.textContent = txt; e.clas
 /* ---------- report ---------- */
 function report(P){
   const g = P.grade;
-  $("mBand").textContent = BANDS[g.band].label;
-  $("mBand").style.color = ["var(--ink-soft)", "var(--ink)", "var(--pen)", "var(--amber)", "var(--rose)"][g.band];
-  const clues = P.givens.reduce((a, v) => a + (v ? 1 : 0), 0);
-  $("mClues").textContent = clues + (clues === 0 ? " (cages only)" : "");
+  const tone = ["var(--ink-soft)", "var(--ink-soft)", "var(--pen)", "var(--amber)", "var(--rose)"][g.band];
+  const v = $("mBand");
+  v.textContent = BANDS[g.band].label;
+  v.style.color = tone;
+  v.setAttribute("data-band", BANDS[g.band].key);
+
+  const clues = P.givens.reduce((a, x) => a + (x ? 1 : 0), 0);
+  $("mClues").textContent = clues;
+  $("mEffort").textContent = g.score;
+  let steps = 0; for(const n of g.tally.values()) steps += n;
+  $("mSteps").textContent = steps;
   const pk = Object.values(TECH).find(t => t.cost === g.peak);
   $("mPeak").textContent = pk ? pk.label : "—";
-  $("mEffort").textContent = g.score + " pts";
 
   const log = $("log");
   log.innerHTML = "";
@@ -1712,7 +1786,10 @@ async function deal(){
   S.grid = Int8Array.from(P.givens);
   S.notes = new Uint16Array(CELLS);
   S.hist = []; S.bad.clear();
-  S.won = false; S.running = false; S.elapsed = 0; $("clock").textContent = "0:00";
+  S.won = false; S.running = false; S.elapsed = 0;
+  $("clockT").textContent = "0:00"; $("clock").className = "bigclock";
+  setActiveTool(null);
+  if(S.notemode) toggleNotes();
   S.sel = P.givens.findIndex(v => !v);
   if(S.sel < 0) S.sel = 0;
   drawStatic();
@@ -1724,15 +1801,32 @@ async function deal(){
 }
 $("btnNew").addEventListener("click", deal);
 
+/* ---------- shortcuts popover ---------- */
+function setKeys(open){
+  $("menuPop").hidden = !open;
+  $("menuBtn").setAttribute("aria-expanded", open ? "true" : "false");
+}
+$("menuBtn").addEventListener("click", () => setKeys($("menuPop").hidden));
+document.addEventListener("click", e => {
+  if($("menuPop").hidden) return;
+  if(e.target && e.target.closest && e.target.closest(".popwrap")) return;
+  setKeys(false);
+});
+
 /* ---------- theme ---------- */
+function currentTheme(){
+  const set = document.documentElement.getAttribute("data-theme");
+  return set || (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+}
+function syncThemeLabel(){ $("themeState").textContent = currentTheme(); }
 $("themeBtn").addEventListener("click", () => {
-  const cur = document.documentElement.getAttribute("data-theme");
-  const dark = cur ? cur === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
-  document.documentElement.setAttribute("data-theme", dark ? "light" : "dark");
+  document.documentElement.setAttribute("data-theme", currentTheme() === "dark" ? "light" : "dark");
+  syncThemeLabel();
 });
 
 /* ---------- boot ---------- */
 paintDiffs();
+syncThemeLabel();
 $("seed").value = randomSeed();
 $("cName").textContent = "Classic";
 drawStatic();

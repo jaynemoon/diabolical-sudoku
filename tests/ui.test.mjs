@@ -124,7 +124,7 @@ const ok = (c, m) => { if(!c){ console.log("  FAIL " + m); fails++; } else conso
 
 console.log("\n[UI] whole page script executes under a DOM shim");
 try{
-  vm.runInNewContext(script + "\n;globalThis.__S = S; globalThis.__deal = deal; globalThis.__enter = enter; globalThis.__hint = hint; globalThis.__check = check; globalThis.__paint = paint; globalThis.__undo = undo; globalThis.__BANDS = BANDS;", sandbox, { timeout: 120000 });
+  vm.runInNewContext(script + "\n;globalThis.__S = S; globalThis.__deal = deal; globalThis.__enter = enter; globalThis.__hint = hint; globalThis.__paint = paint; globalThis.__undo = undo; globalThis.__BANDS = BANDS; globalThis.__toggleNotes = toggleNotes;", sandbox, { timeout: 120000 });
   console.log("  ok   script parsed and ran with no exception");
 }catch(e){
   console.log("  FAIL script threw: " + e.message + "\n" + (e.stack || "").split("\n").slice(0, 4).join("\n"));
@@ -148,17 +148,21 @@ ok(P.solution.length === 81, "solution grid present");
 ok(byId.get("mBand").textContent.length > 1, "verdict rendered: " + byId.get("mBand").textContent);
 ok(byId.get("mClues").textContent !== "—", "clue count rendered: " + byId.get("mClues").textContent);
 ok(byId.get("mPeak").textContent !== "—", "hardest technique rendered: " + byId.get("mPeak").textContent);
+ok(byId.get("mSteps").textContent !== "—", "deduction step count rendered: " + byId.get("mSteps").textContent);
+ok(byId.get("mBand").getAttribute("data-band"), "verdict carries its band for styling: " + byId.get("mBand").getAttribute("data-band"));
+ok(!!byId.get("clockT"), "the header clock has its own text node");
+ok(!!byId.get("menuBtn") && !!byId.get("menuPop"), "the settings menu exists");
 ok(byId.get("log").childNodes.length > 0, "technique log has " + byId.get("log").childNodes.length + " nodes");
 ok(byId.get("grid").childNodes.length === 81, "81 cells built");
 ok(byId.get("pad").childNodes.length === 9, "9 pad buttons built");
-ok(byId.get("switches").childNodes.length === 5, "5 constraint switches built");
+ok(byId.get("switches").childNodes.length === 5, "5 constraint chips built");
 
 /* The dial offers only the top three. Steady and Tricky still exist in the
    scale so an easy board is reported honestly, but neither is a target. */
 const diffLabels = byId.get("diffs").childNodes.map(b => b.textContent);
 ok(diffLabels.length === 3, "3 difficulty buttons built, got " + diffLabels.length);
 ok(!diffLabels.some(l => /steady|tricky/i.test(l)), "the easy bands are not offered: " + diffLabels.join(" / "));
-ok(diffLabels.join(",") === "Hard,Diabolical,Insanely Diabolical", "dial reads " + diffLabels.join(" → "));
+ok(diffLabels.join(",") === "A Touch Diabolical,Diabolical,Insanely Diabolical", "dial reads " + diffLabels.join(" → "));
 /* each button must map to its true band index, not its position: dropping a
    band from the front would otherwise shift every difficulty by a rung */
 ok(byId.get("diffs").childNodes.every((b, i) => +b.dataset.band === i + 2), "buttons carry their real band index");
@@ -170,6 +174,7 @@ ok(byId.get("diffs").childNodes.every((b, i) => +b.dataset.band === i + 2), "but
      "band thresholds unchanged: " + B.map(b => b.max).join(","));
   ok(B[4].key === "insane" && B[4].label === "Insanely Diabolical",
      "the top band is Insanely Diabolical");
+  ok(B[2].label === "A Touch Diabolical", "the entry band is A Touch Diabolical");
   ok(B[4].max === Infinity, "and it keeps the old top-band ceiling");
   ok(B.filter(b => b.selectable === false).map(b => b.key).join(",") === "steady,tricky",
      "exactly Steady and Tricky are withheld");
@@ -177,19 +182,21 @@ ok(byId.get("diffs").childNodes.every((b, i) => +b.dataset.band === i + 2), "but
 
 /* the third cell rule is refused, so the generator is never asked to grind */
 {
-  const sw = byId.get("switches").childNodes.map(l => l.querySelector("input"));
-  const tick = (i, on) => { sw[i].checked = on; sw[i].dispatch("change", { target: sw[i] }); };
+  const sw = byId.get("switches").childNodes;
+  const tick = (i) => sw[i].dispatch("click", { target: sw[i] });
   S.cons.diagonal = S.cons.antiKnight = S.cons.antiKing = false;
-  tick(0, true); tick(1, true);
+  tick(0); tick(1);
   ok(S.cons.diagonal && S.cons.antiKnight, "two cell rules combine freely");
-  tick(2, true);
+  ok(sw[0].className.includes("on") && sw[1].className.includes("on"), "and both chips light");
+  tick(2);
   ok(S.cons.antiKing === false, "the third cell rule is refused");
-  ok(sw[2].checked === false, "and its box is unticked again");
+  ok(!sw[2].className.includes("on"), "and its chip does not light");
   ok(/at most two/.test(byId.get("status").textContent), "with an explanation: “" + byId.get("status").textContent + "”");
-  tick(3, true);
+  tick(3);
   ok(S.cons.killer === true, "killer cages are unaffected by the cap");
-  tick(0, false); tick(1, false); tick(3, false);
+  tick(0); tick(1); tick(3);
   ok(!S.cons.diagonal && !S.cons.antiKnight && !S.cons.killer, "rules clear again");
+  ok(!sw[0].className.includes("on"), "and the chips unlight");
 }
 
 /* Space toggles notes mode, and so does N */
@@ -221,7 +228,8 @@ for(let i = 0; i < 81; i++){
 }
 ok(wrong === 0, "every rendered digit matches its given (" + shown + " shown)");
 
-/* entering the right digit sticks; entering a wrong one is caught by Check */
+/* entering the right digit sticks; a wrong one is caught by Hint, which
+   refuses to reason past it and marks it red */
 const empty = [...Array(81).keys()].find(i => !P.givens[i]);
 S.sel = empty;
 sandbox.__enter(P.solution[empty]);
@@ -232,8 +240,9 @@ ok(S.grid[empty] === 0, "undo clears the entry");
 
 const bad = P.solution[empty] % 9 + 1;
 S.sel = empty; sandbox.__enter(bad);
-sandbox.__check();
-ok(S.bad.has(empty) === (bad !== P.solution[empty]), "Check flags the wrong digit");
+sandbox.__hint();
+ok(S.bad.has(empty), "Hint flags a wrong digit rather than reasoning past it");
+ok(/red/.test(byId.get("status").textContent), "and says so: “" + byId.get("status").textContent + "”");
 sandbox.__undo();
 
 /* Mouse model: right button = notes, left click on the board = back to pen.
@@ -299,6 +308,47 @@ sandbox.__hint();
 const st = byId.get("status").textContent;
 ok(/r\dc\d/.test(st), "hint names a cell: “" + st + "”");
 
+/* Toolbar state: never two things selected at once, and a result clears when
+   you touch the board — the same contract notes mode already follows. */
+console.log("\n[UI] the tool row shows one current thing at a time");
+{
+  const lit = id => byId.get(id).className.includes("on");
+  const anyCell = [...Array(81).keys()].find(i => !P.givens[i]);
+  const clickCell = i => byId.get("grid").dispatch("pointerdown",
+    { target: byId.get("grid").childNodes[i], button: 0 });
+
+  // reset
+  if(S.notemode) sandbox.__toggleNotes();
+  clickCell(anyCell);
+
+  // the reported bug: notes on, then Hint, left both lit
+  sandbox.__toggleNotes();
+  ok(lit("btnNotes"), "Notes lights when switched on");
+  sandbox.__hint();
+  ok(!lit("btnNotes"), "asking for a hint turns Notes off");
+  ok(lit("btnHint"), "and Hint lights instead");
+
+  // touching the board returns the row to default
+  clickCell(anyCell);
+  ok(!lit("btnHint"), "clicking a cell clears the Hint highlight");
+  ok(!lit("btnNotes"), "and nothing else is left lit");
+
+  // turning Notes on clears a lit result
+  sandbox.__hint();
+  sandbox.__toggleNotes();
+  ok(lit("btnNotes"), "Notes lights");
+  ok(!lit("btnHint"), "and clears the lit result");
+  sandbox.__toggleNotes();
+  clickCell(anyCell);
+
+  /* byId is built from the ids present in the markup, so this asserts the two
+     removed controls are really gone rather than merely unwired */
+  ok(!byId.has("btnAuto"), "Auto-pencil is gone from the markup");
+  ok(!byId.has("btnCheck"), "Check is gone from the markup");
+  ok(!!byId.get("btnNotes") && !!byId.get("btnUndo") && !!byId.get("btnHint"),
+     "Notes, Undo and Hint remain");
+}
+
 /* Input fuzz: thousands of random gestures must never throw and never corrupt
    state. A game is driven by whatever the player does in whatever order, so
    the invariants matter more than any single scripted sequence. */
@@ -320,12 +370,10 @@ console.log("\n[UI] input fuzz — 4000 random gestures hold every invariant");
     () => pressKey(" "),
     () => pressKey("n"),
     () => pressKey("u"),
-    () => pressKey("c"),
     () => grid.dispatch("pointerdown", { target: grid.childNodes[(rnd()*81)|0], button: 0 }),
     () => grid.dispatch("contextmenu", { target: grid.childNodes[(rnd()*81)|0], button: 2, preventDefault(){} }),
     () => pad.dispatch("contextmenu",  { target: pad.childNodes[(rnd()*9)|0],  button: 2, preventDefault(){} }),
     () => byId.get("btnNotes").dispatch("click", {}),
-    () => byId.get("btnAuto").dispatch("click", {}),
     () => byId.get("btnUndo").dispatch("click", {})
   ];
 
@@ -360,7 +408,6 @@ console.log("\n[UI] input fuzz — 4000 random gestures hold every invariant");
   /* leave a clean slate for the win test */
   S.notemode = false;
   byId.get("btnNotes").classList.remove("on");
-  S.autoPencil = false;
   S.grid = Int8Array.from(P.givens);
   S.notes = new Uint16Array(81);
   S.hist = []; S.bad.clear(); S.won = false;
