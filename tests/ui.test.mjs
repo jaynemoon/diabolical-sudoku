@@ -152,6 +152,10 @@ ok(byId.get("mSteps").textContent !== "—", "deduction step count rendered: " +
 ok(byId.get("mBand").getAttribute("data-band"), "verdict carries its band for styling: " + byId.get("mBand").getAttribute("data-band"));
 ok(!!byId.get("clockT"), "the header clock has its own text node");
 ok(!!byId.get("menuBtn") && !!byId.get("menuPop"), "the settings menu exists");
+/* removed chrome: the ruleset name beside the Generator heading, and the
+   commentary line after a successful deal */
+ok(!src.includes('id="cName"'), "no ruleset label beside the Generator heading");
+ok(!/Clock starts/.test(src), "no “clock starts” line after a deal");
 ok(byId.get("log").childNodes.length > 0, "technique log has " + byId.get("log").childNodes.length + " nodes");
 ok(byId.get("grid").childNodes.length === 81, "81 cells built");
 ok(byId.get("pad").childNodes.length === 9, "9 pad buttons built");
@@ -449,6 +453,25 @@ if(landed2){
     if(!texts.some(t => +t.getAttribute("x") === want.x && +t.getAttribute("y") === want.y && +t.textContent === cg.sum)) misplaced++;
   }
   ok(misplaced === 0, "every cage sum sits on its top-left cell");
+}
+
+/* A hidden tab must still be able to deal. requestAnimationFrame is throttled
+   to a near stop when the page is not visible, so the generator falls back to a
+   timer; before that fix the loop stalled until you came back to the tab. */
+console.log("\n[UI] a board still deals while the page is hidden");
+{
+  document.hidden = true;
+  S.puzzle = null;
+  byId.get("seed").value = "HIDDEN1";
+  const t0 = Date.now();
+  sandbox.__deal();
+  const landedHidden = await waitFor(() => S.puzzle, 45000);
+  document.hidden = false;
+  ok(landedHidden, "dealt with document.hidden = true in " + (Date.now() - t0) + "ms");
+  if(landedHidden){
+    ok(S.puzzle.solution.length === 81, "and the board it produced is a real one");
+    ok(byId.get("mBand").textContent !== "—", "with its verdict reported: " + byId.get("mBand").textContent);
+  }
 }
 
 console.log(fails === 0 ? "\nUI SMOKE TEST PASSED\n" : "\n" + fails + " UI FAILURE(S)\n");

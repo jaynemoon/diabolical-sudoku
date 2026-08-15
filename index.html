@@ -229,7 +229,6 @@ body.notemode .pad button{color:var(--pencil);font-size:clamp(13px,2.4vw,17px)}
   text-transform:uppercase;color:var(--ink-faint);font-weight:400;
   display:flex;justify-content:space-between;align-items:baseline;gap:8px;
 }
-.card h2 b{font-weight:400;color:var(--ink-soft)}
 
 /* constraint chips — inline, same language as the difficulty control */
 .fieldlabel{
@@ -421,7 +420,7 @@ body.notemode .pad button{color:var(--pencil);font-size:clamp(13px,2.4vw,17px)}
     <aside class="rail">
 
       <section class="card">
-        <h2>Generator <b id="cName">Classic</b></h2>
+        <h2>Generator</h2>
         <div class="fieldlabel">Rules</div>
         <div class="chips" id="switches"></div>
         <div class="fieldlabel">Difficulty</div>
@@ -1262,7 +1261,15 @@ function digFromEmpty(sol, E, rnd, floor){
 const FLOOR_PLAIN   = [38, 33, 28, 24, 17];
 const FLOOR_OVERLAY = [30, 23, 16, 8, 0];
 
-const frame = () => new Promise(r => requestAnimationFrame(() => r()));
+/* Browsers throttle requestAnimationFrame to a near stop in a hidden tab, which
+   would stall the generator until you came back. Fall back to a timer when the
+   page is not visible; the engine also runs headless, where there is no
+   document at all. */
+const frame = () => new Promise(r => {
+  if(typeof document !== "undefined" && document.hidden) setTimeout(r, 0);
+  else if(typeof requestAnimationFrame === "function") requestAnimationFrame(() => r());
+  else setTimeout(r, 0);
+});
 
 /* Difficulty is steered, not guessed. Each attempt is graded, and the clue
    floor moves against the error: too easy digs deeper next time, too hard
@@ -1271,7 +1278,8 @@ const frame = () => new Promise(r => requestAnimationFrame(() => r()));
 async function generate(cons, targetBand, seedStr, onProgress){
   const base = hashStr(seedStr);
   let best = null;
-  const deadline = performance.now() + 9000;
+  const BUDGET_MS = 9000;
+  let spent = 0;          // time actually spent searching, not elapsed
   // Killer cages carry a board on their own, so those start from an empty grid.
   // Thermometers only supplement the clues, so they dig down from a full one.
   const fromEmpty = cons.killer, overlay = cons.killer || cons.thermo;
@@ -1282,13 +1290,14 @@ async function generate(cons, targetBand, seedStr, onProgress){
 
   let starved = 0, attempts = 0;
   for(let attempt = 0; attempt < 60; attempt++){
-    if(attempt && performance.now() > deadline) break;
+    if(attempt && spent > BUDGET_MS) break;
     onProgress(attempt);
     await frame();
     attempts++;
     const rnd = mulberry32((base + attempt * 0x9E3779B1) >>> 0);
     const step = attempt < 8 ? 3 : attempt < 20 ? 2 : 1;
 
+    const tAttempt = performance.now();
     beginBudget(800000, 2500);
     try{
       const plainE = makeEngine(cons, null, null);
@@ -1325,6 +1334,7 @@ async function generate(cons, targetBand, seedStr, onProgress){
       if(starved >= 2 && !best) break;     // two dead ends is enough to call it
     }finally{
       endBudget();
+      spent += performance.now() - tAttempt;
     }
   }
   return { puzzle: best, starved, attempts };
@@ -1401,7 +1411,6 @@ for(const c of CONSTRAINTS){
     }
     S.cons[c.key] = want;
     b.classList.toggle("on", want);
-    $("cName").textContent = consName();
     setStatus(consName() === "Classic" ? "Classic rules. Deal a board." : consName() + ". Deal a board.", "");
   });
   swEl.appendChild(b);
@@ -1796,7 +1805,7 @@ async function deal(){
   paint();
   report(P);
   const asked = BANDS[S.target].label, got = BANDS[P.grade.band].label;
-  if(asked === got) setStatus("Graded " + got.toLowerCase() + ". Clock starts on your first digit.", "");
+  if(asked === got) setStatus("", "");
   else setStatus("Closest it could find was " + got.toLowerCase() + ", not " + asked.toLowerCase() + " — deal again for another draw.", "");
 }
 $("btnNew").addEventListener("click", deal);
@@ -1828,7 +1837,6 @@ $("themeBtn").addEventListener("click", () => {
 paintDiffs();
 syncThemeLabel();
 $("seed").value = randomSeed();
-$("cName").textContent = "Classic";
 drawStatic();
 paint();
 deal();
